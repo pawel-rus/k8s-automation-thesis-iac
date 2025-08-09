@@ -28,4 +28,4 @@ jobs:
         with:
           context: ./src
           push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/my-image:${{ github.event.inputs.tag }}
+          tags: ${{ secrets.DOCKER_USERNAME }}/k8s-automation-thesis-iac:${{ github.event.inputs.tag }}
