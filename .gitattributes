@@ -1,0 +1,13 @@
+# YAML files
+*.yml linguist-detectable=true
+*.yml linguist-language=YAML
+*.yaml linguist-detectable=true
+*.yaml linguist-language=YAML
+
+# Groovy files
+*.groovy linguist-detectable=true
+*.groovy linguist-language=Groovy
+
+# Terraform files
+*.tf linguist-detectable=true
+*.tf linguist-language=Terraform
