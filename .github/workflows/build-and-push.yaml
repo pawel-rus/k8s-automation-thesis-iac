@@ -26,6 +26,6 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v2
         with:
-          context: ./app
+          context: ./src
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/my-image:${{ github.event.inputs.tag }}
