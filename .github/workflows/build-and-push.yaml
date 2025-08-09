@@ -2,11 +2,11 @@ name: Build & Push Docker Image
 
 on:
   workflow_dispatch:
-  inputs:
-    tag:
-      description: 'Docker tag'
-      required: true
-      default: 'latest'
+    inputs:
+      tag:
+        description: 'Docker tag'
+        required: true
+        default: 'latest'
 
 jobs:
   build:
