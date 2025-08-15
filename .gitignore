@@ -32,7 +32,7 @@ terraform.rc
 
 # Ignore terraform plan output
 *tfplan*
-
+tf_outputs.json
 # ----------------------------
 # AWS CLI & credentials
 # ----------------------------
@@ -51,9 +51,8 @@ id_ed25519*
 # Ansible
 # ----------------------------
 # Ansible inventory and host_vars/group_vars with secrets
-inventory/
-host_vars/
-group_vars/
+/infra/ansible/environments/
+
 
 # Vault password file
 *.vault_pass

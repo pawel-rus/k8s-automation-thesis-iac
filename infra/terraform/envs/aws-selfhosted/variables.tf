@@ -10,16 +10,22 @@ variable "cluster_name" {
   default     = "selfhosted-k8s"
 }
 
-variable "node_count" {
-  description = "Number of EC2 instances"
-  type        = number
-  default     = 3
+variable "master_instance_type" {
+  description = "EC2 instance type for the Kubernetes master node"
+  type        = string
+  default     = "t3.medium"
 }
 
-variable "instance_type" {
-  description = "EC2 instance type"
+variable "worker_instance_type" {
+  description = "EC2 instance type for the Kubernetes worker nodes"
   type        = string
-  default     = "t3.micro"
+  default     = "t3.small"
+}
+
+variable "worker_count" {
+  description = "Number of Kubernetes worker nodes"
+  type        = number
+  default     = 2
 }
 
 variable "ssh_key_name" {
