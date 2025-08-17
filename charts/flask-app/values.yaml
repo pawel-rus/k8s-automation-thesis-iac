@@ -1,0 +1,11 @@
+replicaCount: 1
+
+image:
+  repository: pawelrus1/k8s-automation-thesis-iac
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: NodePort
+  port: 5000
+  nodePort: 30080

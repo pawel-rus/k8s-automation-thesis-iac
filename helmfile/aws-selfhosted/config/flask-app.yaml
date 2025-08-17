@@ -1,0 +1,9 @@
+# - replicaCount: 1
+#   image:
+#     repository: pawelrus1/k8s-automation-thesis-iac
+#     tag: latest
+#   service:
+#     type: LoadBalancer 
+#     port: 80
+#   ingress:
+#     enabled: false

@@ -11,3 +11,9 @@ releases:
     values:
       - ./config/dashboard.yaml
 
+  - name: flask-app
+    namespace: aws-selfhosted 
+    createNamespace: true
+    chart: ../../charts/flask-app  
+    values:
+      - ./config/flask-app.yaml
