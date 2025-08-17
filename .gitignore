@@ -53,6 +53,8 @@ id_ed25519*
 # Ansible inventory and host_vars/group_vars with secrets
 /infra/ansible/environments/
 
+# Kubeconfig files
+/infra/.kubeconfigs/
 
 # Vault password file
 *.vault_pass
