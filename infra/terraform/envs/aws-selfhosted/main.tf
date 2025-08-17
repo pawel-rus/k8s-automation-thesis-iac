@@ -11,7 +11,7 @@ resource "aws_vpc" "main" {
 # Subnet
 resource "aws_subnet" "main" {
   vpc_id                  = aws_vpc.main.id
-  cidr_block              = "10.0.1.0/24"
+  cidr_block              = "10.0.0.0/16"
   map_public_ip_on_launch = true
   availability_zone       = "${var.aws_region}a"
   tags = { Name = "${var.cluster_name}-subnet" }
@@ -40,9 +40,10 @@ resource "aws_route_table_association" "a" {
 # Security Group
 resource "aws_security_group" "k8s" {
   name        = "${var.cluster_name}-sg"
-  description = "Allow SSH and HTTP"
+  description = "Security group for Kubernetes cluster"
   vpc_id      = aws_vpc.main.id
 
+  # SSH
   ingress {
     description = "SSH"
     from_port   = 22
@@ -51,6 +52,7 @@ resource "aws_security_group" "k8s" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  # HTTP (jeśli potrzebny)
   ingress {
     description = "HTTP"
     from_port   = 80
@@ -59,14 +61,43 @@ resource "aws_security_group" "k8s" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  # Kubernetes API
   ingress {
-    description = "K8s API"
+    description = "K8s API Server"
     from_port   = 6443
     to_port     = 6443
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  # Calico BGP (TCP 179)
+  ingress {
+    description = "Calico BGP"
+    from_port   = 179
+    to_port     = 179
+    protocol    = "tcp"
+    cidr_blocks = ["10.0.0.0/16"]
+  }
+
+  # Calico VXLAN (UDP 4789)
+  ingress {
+    description = "Calico VXLAN"
+    from_port   = 4789
+    to_port     = 4789
+    protocol    = "udp"
+    cidr_blocks = ["10.0.0.0/16"]
+  }
+
+  # Pod-to-Pod communication
+  ingress {
+    description = "Pod-to-Pod communication"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["10.0.0.0/16"]
+  }
+
+  # Allow all outbound traffic
   egress {
     from_port   = 0
     to_port     = 0
@@ -74,6 +105,7 @@ resource "aws_security_group" "k8s" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 }
+
 
 # Ubuntu AMI
 data "aws_ami" "ubuntu" {
