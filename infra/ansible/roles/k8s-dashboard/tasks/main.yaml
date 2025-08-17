@@ -1,0 +1,73 @@
+---
+- name: Ensure 'kubernetes-dashboard' namespace exists
+  kubernetes.core.k8s:
+    kubeconfig: "{{ kubeconfig_path }}"
+    validate_certs: no
+    name: kubernetes-dashboard
+    kind: Namespace
+    state: present
+
+- name: Create 'admin-{{ project_env }}' ServiceAccount in 'kubernetes-dashboard'
+  kubernetes.core.k8s:
+    kubeconfig: "{{ kubeconfig_path }}"
+    validate_certs: no
+    name: "admin-{{ project_env }}"
+    namespace: kubernetes-dashboard
+    kind: ServiceAccount
+    state: present
+
+- name: Bind ServiceAccount 'admin-{{ project_env }}' to cluster-admin role
+  kubernetes.core.k8s:
+    kubeconfig: "{{ kubeconfig_path }}"
+    validate_certs: no
+    definition:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: "admin-{{ project_env }}-binding"
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: cluster-admin
+      subjects:
+        - kind: ServiceAccount
+          name: "admin-{{ project_env }}"
+          namespace: kubernetes-dashboard
+    state: present
+
+- name: Create Secret for 'admin-{{ project_env }}' token
+  kubernetes.core.k8s:
+    kubeconfig: "{{ kubeconfig_path }}"
+    validate_certs: no
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: "admin-{{ project_env }}-token"
+        namespace: kubernetes-dashboard
+        annotations:
+          kubernetes.io/service-account.name: "admin-{{ project_env }}"
+      type: kubernetes.io/service-account-token
+    state: present
+
+- name: Get Secret for 'admin-{{ project_env }}'
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ kubeconfig_path }}"
+    validate_certs: no
+    kind: Secret
+    namespace: kubernetes-dashboard
+    name: "admin-{{ project_env }}-token"
+  register: admin_sa_secret
+
+- name: Decode token for 'admin-{{ project_env }}'
+  set_fact:
+    admin_sa_token: "{{ admin_sa_secret.resources[0].data.token | b64decode }}"
+
+- name: Show dashboard login token
+  debug:
+    msg: "Dashboard token for admin-{{ project_env }}: {{ admin_sa_token }}"
+
+- name: Generate kubeconfig for 'admin-{{ project_env }}'
+  template:
+    src: kubeconfig-dashboard.j2
+    dest: "../.kubeconfigs/admin-{{ project_env }}-dashboard-kubeconfig"
