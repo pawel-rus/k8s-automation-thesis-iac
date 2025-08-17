@@ -1,0 +1,35 @@
+---
+- name: Create {{ project_env }} namespace
+  kubernetes.core.k8s:
+    kubeconfig: "{{ kubeconfig_path }}" 
+    validate_certs: no
+    name: "{{ project_env }}"
+    kind: Namespace
+    state: present
+
+- name: Create 'logging' namespace
+  kubernetes.core.k8s:
+    kubeconfig: "{{ kubeconfig_path }}"
+    validate_certs: no
+    name: logging
+    kind: Namespace
+    state: present
+
+- name: Create 'monitoring' namespace
+  kubernetes.core.k8s:
+    kubeconfig: "{{ kubeconfig_path }}"
+    validate_certs: no
+    name: monitoring
+    kind: Namespace
+    state: present
+
+- name: List all namespaces
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ kubeconfig_path }}"
+    validate_certs: no
+    kind: Namespace
+  register: ns_list
+
+- name: Show namespaces
+  debug:
+    var: ns_list.resources | map(attribute='metadata.name') | list

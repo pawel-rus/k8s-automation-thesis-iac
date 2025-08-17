@@ -17,18 +17,9 @@ This repository contains all Infrastructure as Code and automation artifacts for
 * **Helm** charts and overrides
 * **CI/CD** pipelines (Jenkinsfiles & GitHub Actions workflows)
 
-## 🚀 Structure
+## Ansible
 
-```
-├── terraform/
-│   ├── eks/          # EKS modules and examples
-│   └── self-managed/ # VM-based Kubernetes modules
-├── ansible/
-│   └── playbooks/    # Ansible roles and playbooks
-├── helm/
-│   └── charts/       # Custom Helm charts
-├── ci-cd/
-│   ├── jenkins/      # Jenkins pipelines
-│   └── github-actions/ # GitHub Actions workflows
-└── docs/             # Design docs, cost analysis, benchmarks
+- To use kubernetes.core.k8s module, install python3-kubernetes on local machine
+```bash
+sudo apt install python3-kubernetes
 ```

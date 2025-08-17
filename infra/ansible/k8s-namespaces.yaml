@@ -1,0 +1,8 @@
+---
+- hosts: localhost
+  gather_facts: no
+  become: no
+  roles:
+    - namespaces
+  vars:
+    kubeconfig_path: "../.kubeconfigs/{{ project_env }}-kubeconfig"
