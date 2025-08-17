@@ -31,6 +31,7 @@ fi
 
 # Retrieve IPs from JSON
 MASTER_IP=$(jq -r '.master_public_ip.value' "$TF_OUTPUT_FILE")
+MASTER_PRIVATE_IP=$(jq -r '.master_private_ip.value' "$TF_OUTPUT_FILE")
 WORKER_IPS=($(jq -r '.worker_public_ips.value[]' "$TF_OUTPUT_FILE"))
 
 # Generate YAML inventory
@@ -45,8 +46,9 @@ for i in "${!WORKER_IPS[@]}"; do
   echo "      ansible_host: ${WORKER_IPS[i]}"
 done
 echo "  vars:"
-echo "    master_node_ip: $MASTER_IP"
+echo "    master_node_ip: $MASTER_PRIVATE_IP"
 echo "    access_user: ubuntu"
+echo "    ansible_user: ubuntu"
 echo "    project_name: k8s-automation-thesis"
 echo "    project_env: $ENV_NAME"
 echo "  children:"
