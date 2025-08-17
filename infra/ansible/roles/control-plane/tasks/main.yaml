@@ -1,0 +1,78 @@
+---
+- name: Initialize Kubernetes master node
+  command: kubeadm init --pod-network-cidr={{ pod_network_cidr }} --apiserver-advertise-address={{ master_node_ip }}
+  register: kubeadm_init
+  args:
+    creates: /etc/kubernetes/admin.conf
+
+- name: Ensure .kube directory for {{ access_user }}
+  file:
+    path: "/home/{{ access_user }}/.kube"
+    state: directory
+    owner: "{{ access_user }}"
+    group: "{{ access_user }}"
+    mode: '0755'
+  become: yes
+
+- name: Copy kubeconfig to {{ access_user }} user
+  copy:
+    src: /etc/kubernetes/admin.conf
+    dest: "/home/{{ access_user }}/.kube/config"
+    remote_src: yes
+    owner: "{{ access_user }}"
+    group: "{{ access_user }}"
+    mode: 0600
+
+- name: Fetch kubeconfig to local machine
+  fetch:
+    src: "/home/{{ access_user }}/.kube/config"
+    dest: "./../.kubeconfigs/{{ project_env }}-kubeconfig"
+    flat: yes
+  become: no
+
+- name: Replace private server IP in kubeconfig with public IP
+  replace:
+    path: "./../.kubeconfigs/{{ project_env }}-kubeconfig"
+    regexp: 'server: https://[0-9\.]+:6443'
+    replace: "server: https://{{ hostvars['master'].ansible_host }}:6443"
+  delegate_to: localhost
+  become: no
+  
+- name: Apply Calico network plugin
+  command: kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v{{ calico_version }}/manifests/calico.yaml
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+
+# - name: Download Calico manifest
+#   get_url:
+#     url: "https://raw.githubusercontent.com/projectcalico/calico/v{{ calico_version }}/manifests/calico.yaml"
+#     dest: "/tmp/calico.yaml"
+#   run_once: true
+
+# - name: Uncomment and configure Calico IP Pool CIDR
+#   lineinfile:
+#     path: /tmp/calico.yaml
+#     regexp: '(# )- name: CALICO_IPV4POOL_CIDR' # Znajdź zakomentowaną linię
+#     line: '            - name: CALICO_IPV4POOL_CIDR' # Zastąp ją odkomentowaną
+#     backrefs: yes
+#   run_once: true
+
+# - name: Set the correct Pod Network CIDR in Calico manifest
+#   lineinfile:
+#     path: /tmp/calico.yaml
+#     regexp: 'value: "192.168.0.0/16"' # Znajdź domyślną wartość
+#     line: '              value: "{{ pod_network_cidr }}"' # Zastąp ją wartością z naszej zmiennej
+#   run_once: true
+
+# - name: Apply the modified Calico network plugin
+#   command: kubectl apply -f /tmp/calico.yaml
+#   environment:
+#     KUBECONFIG: /etc/kubernetes/admin.conf
+
+- name: Generate join command for workers
+  command: kubeadm token create --print-join-command
+  register: join_command
+
+- name: Save join command fact
+  set_fact:
+    worker_join_cmd: "{{ join_command.stdout }}"

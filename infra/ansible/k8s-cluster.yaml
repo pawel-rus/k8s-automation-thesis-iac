@@ -1,0 +1,15 @@
+---
+- hosts: k8s_cluster
+  become: yes
+  roles:
+    - common
+
+- hosts: kube_control_plane
+  become: yes
+  roles:
+    - control-plane
+
+- hosts: kube_node
+  become: yes
+  roles:
+    - join-cluster

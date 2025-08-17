@@ -1,0 +1,10 @@
+---
+- name: Join worker to cluster
+  command: "{{ hostvars[groups['kube_control_plane'][0]].worker_join_cmd }}"
+  args:
+    creates: /etc/kubernetes/kubelet.conf
+  register: join_result
+
+- name: Display join command output
+  debug:
+    var: join_result.stdout_lines

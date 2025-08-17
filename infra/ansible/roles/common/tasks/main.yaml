@@ -1,0 +1,156 @@
+---
+# Disable swap
+- name: Disable swap
+  command: swapoff -a
+  ignore_errors: yes
+
+- name: Remove swap entries from /etc/fstab
+  replace:
+    path: /etc/fstab
+    regexp: '(\s*swap\s+)'
+    replace: '# \1'
+
+# Containerd installation
+- name: Download Containerd binary
+  get_url:
+    url: "https://github.com/containerd/containerd/releases/download/v{{ containerd_version }}/containerd-{{ containerd_version }}-linux-amd64.tar.gz"
+    dest: "/tmp/containerd-{{ containerd_version }}-linux-amd64.tar.gz"
+
+- name: Extract Containerd binary
+  unarchive:
+    src: "/tmp/containerd-{{ containerd_version }}-linux-amd64.tar.gz"
+    dest: "/usr/local"
+    remote_src: yes
+
+- name: Ensure systemd directory exists for Containerd
+  file:
+    path: "/usr/local/lib/systemd/system"
+    state: directory
+
+- name: Download Containerd service file
+  get_url:
+    url: "https://raw.githubusercontent.com/containerd/containerd/main/containerd.service"
+    dest: "/usr/local/lib/systemd/system/containerd.service"
+
+- name: Reload systemd daemon and enable Containerd
+  systemd:
+    name: containerd
+    daemon_reload: yes
+    state: started
+    enabled: yes
+
+# Runc + CNI
+- name: Download runc binary
+  get_url:
+    url: "https://github.com/opencontainers/runc/releases/download/v{{ runc_version }}/runc.amd64"
+    dest: "/usr/local/bin/runc"
+    mode: '0755'
+
+- name: Download CNI plugins archive
+  get_url:
+    url: "https://github.com/containernetworking/plugins/releases/download/v{{ cni_version }}/cni-plugins-linux-amd64-v{{ cni_version }}.tgz"
+    dest: "/tmp/cni-plugins-linux-amd64-v{{ cni_version }}.tgz"
+
+- name: Ensure /opt/cni/bin directory exists
+  file:
+    path: "/opt/cni/bin"
+    state: directory
+
+- name: Extract CNI plugins
+  unarchive:
+    src: "/tmp/cni-plugins-linux-amd64-v{{ cni_version }}.tgz"
+    dest: "/opt/cni/bin"
+    remote_src: yes
+
+# Networking sysctl
+- name: Configure sysctl for Kubernetes networking
+  copy:
+    dest: "/etc/sysctl.d/k8s.conf"
+    content: |
+      net.ipv4.ip_forward = 1
+
+- name: Apply sysctl settings
+  command: sysctl --system
+
+# Containerd configuration
+- name: Create Containerd configuration directory
+  file:
+    path: "/etc/containerd"
+    state: directory
+
+- name: Generate default Containerd config
+  command: containerd config default
+  register: containerd_default_config
+
+- name: Write Containerd config.toml
+  copy:
+    dest: "/etc/containerd/config.toml"
+    content: "{{ containerd_default_config.stdout }}"
+
+- name: Set SystemdCgroup to true in Containerd config
+  lineinfile:
+    path: "/etc/containerd/config.toml"
+    regexp: '^.*SystemdCgroup =.*$'
+    line: '            SystemdCgroup = true'
+    insertafter: '\[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options\]'
+    backrefs: yes
+
+- name: Restart Containerd to apply new configuration
+  systemd:
+    name: containerd
+    state: restarted
+
+# Kubernetes packages
+- name: Install Kubernetes prerequisites
+  apt:
+    name:
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - gpg
+    state: present
+    update_cache: yes
+
+- name: Create apt keyrings directory
+  file:
+    path: "/etc/apt/keyrings"
+    state: directory
+    mode: '0755'
+
+- name: Download and dearmor Kubernetes apt key
+  shell: curl -fsSL https://pkgs.k8s.io/core:/stable:/v{{ k8s_version }}/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+  args:
+    creates: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+
+- name: Add Kubernetes apt repository
+  copy:
+    dest: /etc/apt/sources.list.d/kubernetes.list
+    content: |
+      deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v{{ k8s_version }}/deb/ /
+
+- name: Update apt cache
+  apt:
+    update_cache: yes
+
+- name: Install kubelet, kubeadm, and kubectl
+  apt:
+    name:
+      - kubelet
+      - kubeadm
+      - kubectl
+    state: present
+
+- name: Hold Kubernetes packages to prevent unintended upgrades
+  dpkg_selections:
+    name: "{{ item }}"
+    selection: hold
+  loop:
+    - kubelet
+    - kubeadm
+    - kubectl
+
+- name: Enable and start kubelet service
+  systemd:
+    name: kubelet
+    state: started
+    enabled: yes
