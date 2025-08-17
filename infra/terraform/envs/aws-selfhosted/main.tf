@@ -97,6 +97,14 @@ resource "aws_security_group" "k8s" {
     cidr_blocks = ["10.0.0.0/16"]
   }
 
+  ingress {
+  description = "Flask NodePort"
+  from_port   = 30080
+  to_port     = 30080
+  protocol    = "tcp"
+  cidr_blocks = ["0.0.0.0/0"]
+  }
+
   # Allow all outbound traffic
   egress {
     from_port   = 0
