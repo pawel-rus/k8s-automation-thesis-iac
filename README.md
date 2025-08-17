@@ -23,3 +23,18 @@ This repository contains all Infrastructure as Code and automation artifacts for
 ```bash
 sudo apt install python3-kubernetes
 ```
+
+## Helm
+
+```bash
+wget https://get.helm.sh/helm-v3.18.5-linux-amd64.tar.gz
+tar -zxvf helm-v3.18.5-linux-amd64.tar.gz
+mv linux-amd64/helm /usr/local/bin/
+wget https://github.com/helmfile/helmfile/releases/download/v1.1.5/helmfile_1.1.5_linux_amd64.tar.gz
+tar -zxvf helmfile_1.1.5_linux_amd64.tar.gz
+mv helmfile /usr/local/bin/
+```
+
+```bash
+kubectl -n kubernetes-dashboard port-forward svc/kubernetes-dashboard-kong-proxy 8080:80
+```
