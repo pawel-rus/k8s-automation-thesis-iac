@@ -2,64 +2,148 @@ provider "aws" {
   region = var.aws_region
 }
 
-# VPC
+locals {
+  availability_zones = ["${var.aws_region}a", "${var.aws_region}b"]
+}
+
+
+#================================================================
+# NETWORKING
+#================================================================
+
+# Virtual Private Cloud (VPC)
 resource "aws_vpc" "main" {
   cidr_block = "10.0.0.0/16"
-  tags = { Name = "${var.cluster_name}-vpc" }
+  enable_dns_support   = true
+  enable_dns_hostnames = true
+  tags = {
+    Name = "${var.cluster_name}-vpc"
+  }
 }
 
 # Subnet
-resource "aws_subnet" "main" {
+# resource "aws_subnet" "main" {
+#   vpc_id                  = aws_vpc.main.id
+#   cidr_block              = "10.0.0.0/16"
+#   map_public_ip_on_launch = true
+#   availability_zone       = "${var.aws_region}a"
+#   tags = { Name = "${var.cluster_name}-subnet" }
+# }
+
+# Two public subnets for High Availability across two AZs 
+# for resources that need direct internet access: master node and load balancers.
+resource "aws_subnet" "public" {
+  count                   = 2
   vpc_id                  = aws_vpc.main.id
-  cidr_block              = "10.0.0.0/16"
+  cidr_block              = "10.0.${count.index + 1}.0/24"
   map_public_ip_on_launch = true
-  availability_zone       = "${var.aws_region}a"
-  tags = { Name = "${var.cluster_name}-subnet" }
+  availability_zone       = local.availability_zones[count.index]
+  tags = {
+    Name = "${var.cluster_name}-public-subnet-${count.index + 1}"
+    "kubernetes.io/cluster/${var.cluster_name}" = "shared"
+    "kubernetes.io/role/elb" = "1" # tag for load balancers
+  }
 }
 
-# Internet Gateway
+# Private subnets for Worker Nodes
+
+resource "aws_subnet" "private" {
+  count             = 2
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = "10.0.${10 + count.index + 1}.0/24" # np. 10.0.11.0/24 i 10.0.12.0/24
+  availability_zone = local.availability_zones[count.index]
+  tags = {
+    Name = "${var.cluster_name}-private-subnet-${count.index + 1}"
+    "kubernetes.io/cluster/${var.cluster_name}" = "shared"
+    "kubernetes.io/role/internal-elb" = "1" # tag for private load balancers
+  }
+}
+
+# Internet Gateway for public subnets
 resource "aws_internet_gateway" "gw" {
   vpc_id = aws_vpc.main.id
+  tags   = { Name = "${var.cluster_name}-igw" }
 }
 
-# Route Table
+# Elastic IP and a NAT Gateway for private subnets
+resource "aws_eip" "nat" {
+  domain     = "vpc"
+  depends_on = [aws_internet_gateway.gw]
+}
+
+resource "aws_nat_gateway" "nat" {
+  allocation_id = aws_eip.nat.id
+  subnet_id = aws_subnet.public[0].id # NAT Gateway in first public subnet
+  tags = { Name = "${var.cluster_name}-nat-gw" }
+}
+
+# Route Table for public subnets, routing traffic through the IGW.
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.main.id
   route {
     cidr_block = "0.0.0.0/0"
     gateway_id = aws_internet_gateway.gw.id
   }
+  tags = { Name = "${var.cluster_name}-public-rt" }
 }
 
-# Route Table Association
-resource "aws_route_table_association" "a" {
-  subnet_id      = aws_subnet.main.id
+# Route Table for private subnets, routing through the NAT Gateway.
+resource "aws_route_table" "private" {
+  vpc_id = aws_vpc.main.id
+  route {
+    cidr_block     = "0.0.0.0/0"
+    nat_gateway_id = aws_nat_gateway.nat.id
+  }
+  tags = { Name = "${var.cluster_name}-private-rt" }
+}
+
+# Associate the public route table with the public subnets.
+resource "aws_route_table_association" "public" {
+  count          = 2
+  subnet_id      = aws_subnet.public[count.index].id
   route_table_id = aws_route_table.public.id
 }
 
-# Security Group
+# Associate the private route table with the private subnets.
+resource "aws_route_table_association" "private" {
+  count          = 2
+  subnet_id      = aws_subnet.private[count.index].id
+  route_table_id = aws_route_table.private.id
+}
+
+#================================================================
+# SECURITY
+#================================================================
+
+# # Security Group for Bastion host
+# resource "aws_security_group" "bastion" {
+#   name        = "${var.cluster_name}-bastion-sg"
+#   description = "Allow SSH access to bastion host"
+#   vpc_id      = aws_vpc.main.id
+
+#   ingress {
+#     description = "SSH from my IP"
+#     from_port   = 22
+#     to_port     = 22
+#     protocol    = "tcp"
+#     cidr_blocks = ["${var.my_ip}/32"]
+#   }
+
+#   egress {
+#     from_port   = 0
+#     to_port     = 0
+#     protocol    = "-1"
+#     cidr_blocks = ["0.0.0.0/0"]
+#   }
+
+#   tags = { Name = "${var.cluster_name}-bastion-sg" }
+# }
+
+# Security group for the Kubernetes nodes.
 resource "aws_security_group" "k8s" {
-  name        = "${var.cluster_name}-sg"
-  description = "Security group for Kubernetes cluster"
+  name        = "${var.cluster_name}-k8s-sg"
+  description = "Security group for Kubernetes cluster nodes"
   vpc_id      = aws_vpc.main.id
-
-  # SSH
-  ingress {
-    description = "SSH"
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  # HTTP (jeśli potrzebny)
-  ingress {
-    description = "HTTP"
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
 
   # Kubernetes API
   ingress {
@@ -70,50 +154,118 @@ resource "aws_security_group" "k8s" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # Calico BGP (TCP 179)
+  # Allow all internal traffic between nodes within the same security group
   ingress {
-    description = "Calico BGP"
-    from_port   = 179
-    to_port     = 179
-    protocol    = "tcp"
-    cidr_blocks = ["10.0.0.0/16"]
-  }
-
-  # Calico VXLAN (UDP 4789)
-  ingress {
-    description = "Calico VXLAN"
-    from_port   = 4789
-    to_port     = 4789
-    protocol    = "udp"
-    cidr_blocks = ["10.0.0.0/16"]
-  }
-
-  # Pod-to-Pod communication
-  ingress {
-    description = "Pod-to-Pod communication"
+    description = "Node-to-node communication"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
-    cidr_blocks = ["10.0.0.0/16"]
+    self        = true
   }
 
+  # Allow inbound traffic from anywhere for standard web ports (HTTP/HTTPS).
   ingress {
-  description = "Flask NodePort"
-  from_port   = 30080
-  to_port     = 30080
-  protocol    = "tcp"
-  cidr_blocks = ["0.0.0.0/0"]
+    description = "Allow HTTP"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  ingress {
+    description = "Allow HTTPS"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # Allow all outbound traffic
+  # Allow all outbound traffic.
   egress {
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
+
+  tags = { Name = "${var.cluster_name}-k8s-sg" }
+
+  # # SSH
+  # ingress {
+  #   description = "SSH"
+  #   from_port   = 22
+  #   to_port     = 22
+  #   protocol    = "tcp"
+  #   cidr_blocks = ["0.0.0.0/0"]
+  # }
+
+ 
+
+  # # Calico BGP (TCP 179)
+  # ingress {
+  #   description = "Calico BGP"
+  #   from_port   = 179
+  #   to_port     = 179
+  #   protocol    = "tcp"
+  #   cidr_blocks = ["10.0.0.0/16"]
+  # }
+
+  # # Calico VXLAN (UDP 4789)
+  # ingress {
+  #   description = "Calico VXLAN"
+  #   from_port   = 4789
+  #   to_port     = 4789
+  #   protocol    = "udp"
+  #   cidr_blocks = ["10.0.0.0/16"]
+  # }
+
+  # ingress {
+  # description = "Flask NodePort"
+  # from_port   = 30080
+  # to_port     = 30080
+  # protocol    = "tcp"
+  # cidr_blocks = ["0.0.0.0/0"]
+  # }
 }
 
+#================================================================
+# IAM (Permissions for EC2 Instances)
+#================================================================
+
+# IAM role that EC2 instances can assume.
+resource "aws_iam_role" "k8s_node_role" {
+  name = "${var.cluster_name}-node-role"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Action = "sts:AssumeRole",
+      Effect = "Allow",
+      Principal = { Service = "ec2.amazonaws.com" }
+    }]
+  })
+  tags = { Name = "${var.cluster_name}-node-role" }
+}
+
+# Attach the policy required for the AWS EBS CSI Driver to manage persistent volumes
+resource "aws_iam_role_policy_attachment" "ebs_csi_policy" {
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
+  role       = aws_iam_role.k8s_node_role.name
+}
+
+# Attach the policy required for AWS Systems Manager (SSM)
+resource "aws_iam_role_policy_attachment" "ssm_policy" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+  role       = aws_iam_role.k8s_node_role.name
+}
+
+# Create an instance profile to pass the IAM role to the EC2 instances.
+resource "aws_iam_instance_profile" "k8s_node_profile" {
+  name = "${var.cluster_name}-node-profile"
+  role = aws_iam_role.k8s_node_role.name
+}
+
+#================================================================
+# COMPUTE (EC2 Instances)
+#================================================================
 
 # Ubuntu AMI
 data "aws_ami" "ubuntu" {
@@ -131,34 +283,34 @@ data "aws_ami" "ubuntu" {
   }
 }
 
+# Create an SSH key pair for emergency access via the EC2 console
 resource "aws_key_pair" "deployer" {
   key_name   = var.ssh_key_name
-  public_key = file("~/.ssh/id_ed25519.pub")
+  public_key = file(var.ssh_public_key_path)
 }
 
-# EC2 Instances
-# Master node
+# Master node instance in public subnet
 resource "aws_instance" "master" {
-  ami           = data.aws_ami.ubuntu.id
+  ami = data.aws_ami.ubuntu.id
   instance_type = var.master_instance_type
-  key_name      = aws_key_pair.deployer.key_name
-  subnet_id     = aws_subnet.main.id
+  key_name  = aws_key_pair.deployer.key_name
+  subnet_id = aws_subnet.public[0].id
   vpc_security_group_ids = [aws_security_group.k8s.id]
-
+  iam_instance_profile   = aws_iam_instance_profile.k8s_node_profile.name
   tags = {
     Name = "${var.cluster_name}-master"
   }
 }
 
-# Worker nodes
+# Worker nodes instances in private subnets
 resource "aws_instance" "workers" {
   count         = var.worker_count
   ami           = data.aws_ami.ubuntu.id
   instance_type = var.worker_instance_type
   key_name      = aws_key_pair.deployer.key_name
-  subnet_id     = aws_subnet.main.id
+  subnet_id     = aws_subnet.private[count.index % 2].id # Distribute workers across private subnets
   vpc_security_group_ids = [aws_security_group.k8s.id]
-
+  iam_instance_profile   = aws_iam_instance_profile.k8s_node_profile.name
   tags = {
     Name = "${var.cluster_name}-worker-${count.index + 1}"
   }

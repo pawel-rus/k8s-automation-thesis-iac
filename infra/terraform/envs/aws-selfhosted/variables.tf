@@ -32,3 +32,13 @@ variable "ssh_key_name" {
   description = "AWS key pair name for SSH access"
   type        = string
 }
+
+variable "ssh_public_key_path" {
+  description = "Local path to the public SSH key."
+  type        = string
+}
+
+variable "my_ip" {
+  description = "Public IP address to allow access to the K8s API."
+  type        = string
+}
