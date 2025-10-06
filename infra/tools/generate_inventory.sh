@@ -17,6 +17,7 @@ INVENTORY_FILE="$INVENTORY_DIR/$ENV_NAME.yaml"
 # Check if Terraform output file exists
 if [ ! -f "$TF_OUTPUT_FILE" ]; then
   echo "File $TF_OUTPUT_FILE does not exist."
+  echo "Run 'terraform output -json > tf_outputs.json' in the correct directory first."
   exit 1
 fi
 
@@ -30,42 +31,49 @@ if ! command -v jq &> /dev/null; then
 fi
 
 # Retrieve IPs from JSON
+MASTER_ID=$(jq -r '.master_instance_id.value' "$TF_OUTPUT_FILE")
 MASTER_IP=$(jq -r '.master_public_ip.value' "$TF_OUTPUT_FILE")
 MASTER_PRIVATE_IP=$(jq -r '.master_private_ip.value' "$TF_OUTPUT_FILE")
-WORKER_IPS=($(jq -r '.worker_public_ips.value[]' "$TF_OUTPUT_FILE"))
+WORKER_IDS=($(jq -r '.worker_instance_ids.value[]' "$TF_OUTPUT_FILE"))
 
 # Generate YAML inventory
-{
-echo "all:"
-echo "  hosts:"
-echo "    master:"
-echo "      ansible_host: $MASTER_IP"
-for i in "${!WORKER_IPS[@]}"; do
+cat << EOF > "$INVENTORY_FILE"
+all:
+  vars:
+    master_node_ip: $MASTER_PRIVATE_IP
+    master_public_ip: $MASTER_IP
+    access_user: ubuntu 
+    ansible_user: ubuntu
+    project_name: k8s-automation-thesis
+    project_env: $ENV_NAME
+
+  children:
+    kube_control_plane:
+      hosts:
+        master:
+          ansible_host: $MASTER_ID
+
+    kube_node:
+      hosts:
+EOF
+
+# Append worker nodes to the 'kube_node' group in the YAML file
+for i in "${!WORKER_IDS[@]}"; do
   index=$((i+1))
-  echo "    worker$index:"
-  echo "      ansible_host: ${WORKER_IPS[i]}"
+  cat << EOF >> "$INVENTORY_FILE"
+        worker$index:
+          ansible_host: ${WORKER_IDS[i]}
+EOF
 done
-echo "  vars:"
-echo "    master_node_ip: $MASTER_PRIVATE_IP"
-echo "    access_user: ubuntu"
-echo "    ansible_user: ubuntu"
-echo "    project_name: k8s-automation-thesis"
-echo "    project_env: $ENV_NAME"
-echo "  children:"
-echo "    kube_control_plane:"
-echo "      hosts:"
-echo "        master:"
-echo "    kube_node:"
-echo "      hosts:"
-for i in "${!WORKER_IPS[@]}"; do
-  index=$((i+1))
-  echo "        worker$index:"
-done
-echo "    k8s_cluster:"
-echo "      children:"
-echo "        kube_control_plane:"
-echo "        kube_node:"
-} > "$INVENTORY_FILE"
+
+# Append the final cluster group definitions
+cat << EOF >> "$INVENTORY_FILE"
+
+    k8s_cluster:
+      children:
+        kube_control_plane:
+        kube_node:
+EOF
 
 echo "Inventory generated in file $INVENTORY_FILE"
 
