@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{% block title %}My Application{% endblock %}</title>
+    <title>{{ title }} - Monitored App</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
@@ -11,7 +11,7 @@
         <a href="{{ url_for('main.index') }}">Home</a>
         <a href="{{ url_for('main.about') }}">About</a>
         <a href="{{ url_for('main.contact') }}">Contact</a>
-        <a href="{{ url_for('main.stats') }}">Stats</a>
+        <a href="{{ url_for('main.login') }}">Login</a> 
     </nav>
 
     <main>
@@ -19,7 +19,7 @@
     </main>
 
     <footer>
-        <p>© 2025 My Application. All rights reserved.</p>
+        <p>© Kubernetes Automation Thesis</p>
     </footer>
 </body>
 </html>

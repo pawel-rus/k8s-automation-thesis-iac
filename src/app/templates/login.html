@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block content %}
+    <h1>Sign In</h1>
+    <form action="" method="post" novalidate>
+        <div class="form-group">
+            <label for="username">Username</label><br>
+            <input type="text" id="username" name="username" size="30">
+        </div>
+        <div class="form-group">
+            <label for="password">Password</label><br>
+            <input type="password" id="password" name="password" size="30">
+        </div>
+        <p><input type="submit" value="Login" class="button"></p>
+        {% if error %}
+            <p class="error-message">{{ error }}</p>
+        {% endif %}
+    </form>
+    <p><i>Hint: Use <b>admin</b> and <b>password</b> to log in.</i></p>
+
+    <style>
+        .form-group { margin-bottom: 1em; }
+        .error-message { color: #ff2c2c; font-weight: bold; }
+        input[type=text], input[type=password] { padding: 10px; border-radius: 5px; border: 1px solid #ccc; }
+    </style>
+{% endblock %}

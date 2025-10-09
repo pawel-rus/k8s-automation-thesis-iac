@@ -1,37 +1,112 @@
-from flask import Blueprint, render_template, jsonify, request
-from .stats import stats_collector
+import time
+import logging
+from flask import Blueprint, render_template, request, Response, redirect, url_for
+from prometheus_client import Counter, Histogram, generate_latest, Gauge
 
-bp = Blueprint('main', __name__)
+class CustomFormatter(logging.Formatter):
+    """
+    Niestandardowy formatter, który dodaje domyślne wartości dla naszych pól,
+    jeśli nie są one obecne w rekordzie logu.
+    """
+    def format(self, record):
+        record.ip = getattr(record, 'ip', '-')
+        record.method = getattr(record, 'method', '-')
+        record.path = getattr(record, 'path', '-')
+        record.status_code = getattr(record, 'status_code', '-')
+        return super().format(record)
 
-@bp.route('/health')
-def health():
-    return jsonify({"status": "ok"}), 200
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
-@bp.route('/')
+log_format = 'time="%(asctime)s" level=%(levelname)s ip=%(ip)s method=%(method)s path=%(path)s status=%(status_code)s - %(message)s'
+formatter = CustomFormatter(log_format)
+
+handler = logging.StreamHandler()
+handler.setFormatter(formatter)
+
+if logger.hasHandlers():
+    logger.handlers.clear()
+logger.addHandler(handler)
+
+logger.propagate = False
+
+REQUESTS_TOTAL = Counter('flask_app_requests_total', 'Total HTTP Requests', ['method', 'endpoint', 'http_status'])
+REQUEST_LATENCY = Histogram('flask_app_request_latency_seconds', 'HTTP Request Latency in seconds', ['method', 'endpoint'])
+ACTIVE_REQUESTS = Gauge('flask_app_active_requests', 'Number of active requests currently being processed', ['method', 'endpoint'])
+LOGIN_ATTEMPTS_TOTAL = Counter('flask_app_login_attempts_total', 'Total login attempts', ['status'])
+
+main_bp = Blueprint('main', __name__)
+
+@main_bp.before_request
+def before_request_handler():
+    request.start_time = time.time()
+    ACTIVE_REQUESTS.labels(request.method, request.path).inc()
+    # Usunąłem print(), ponieważ teraz mamy czyste logi
+    logger.debug("--> Request started", extra={'ip': request.remote_addr, 'method': request.method, 'path': request.path, 'status_code': '-'})
+
+
+@main_bp.after_request
+def after_request_handler(response):
+    ACTIVE_REQUESTS.labels(request.method, request.path).dec()
+    latency = time.time() - request.start_time
+    REQUEST_LATENCY.labels(request.method, request.path).observe(latency)
+    REQUESTS_TOTAL.labels(request.method, request.path, response.status_code).inc()
+    
+    extra_info = {
+        'ip': request.remote_addr,
+        'method': request.method,
+        'path': request.path,
+        'status_code': response.status_code
+    }
+    logger.info(f"Request processed in {latency:.4f}s", extra=extra_info)
+    return response
+
+
+@main_bp.route('/')
 def index():
-    resp = render_template('index.html')
-    stats_collector.log_request(endpoint='/', method=request.method, status_code=200)
-    return resp
+    return render_template('index.html', title='Home Page')
 
-@bp.route('/about')
+@main_bp.route('/about')
 def about():
-    resp = render_template('about.html')
-    stats_collector.log_request(endpoint='/about', method=request.method, status_code=200)
-    return resp
+    return render_template('about.html', title='About Us')
 
-@bp.route('/contact', methods=['GET', 'POST'])
+@main_bp.route('/contact', methods=['GET', 'POST'])
 def contact():
     if request.method == 'POST':
-        status_code = 201
-        content = "<h2>Dziękujemy za kontakt!</h2>"
-        stats_collector.log_request(endpoint='/contact', method='POST', status_code=status_code)
-        return content, status_code
+        email = request.form.get('email')
+        
+        extra_info = {
+            'ip': request.remote_addr,
+            'method': request.method,
+            'path': request.path,
+            'status_code': 201
+        }
+        logger.info(f"Contact form submitted by '{email}'", extra=extra_info)
+        return render_template('contact_success.html', title='Thank You')
 
-    stats_collector.log_request(endpoint='/contact', method='GET', status_code=200)
-    return render_template('contact.html')
+    return render_template('contact.html', title='Contact')
 
-@bp.route('/stats')
-def stats():
-    summary = stats_collector.get_summary()
-    logs = stats_collector.get_logs()
-    return render_template('stats.html', summary=summary, logs=logs)
+@main_bp.route('/login', methods=['GET', 'POST'])
+def login():
+    error = None
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        
+        if username == 'admin' and password == 'password':
+            LOGIN_ATTEMPTS_TOTAL.labels(status='success').inc()
+            return redirect(url_for('main.dashboard'))
+        else:
+            LOGIN_ATTEMPTS_TOTAL.labels(status='failed').inc()
+            error = 'Invalid username or password.'
+
+    return render_template('login.html', title='Login', error=error)
+
+
+@main_bp.route('/dashboard')
+def dashboard():
+    return render_template('dashboard.html', title='Dashboard')
+
+@main_bp.route('/metrics')
+def metrics():
+    return Response(generate_latest(), mimetype='text/plain')

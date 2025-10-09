@@ -1,9 +1,6 @@
 {% extends "base.html" %}
-
-{% block title %}About{% endblock %}
-
 {% block content %}
-<h1>About Us</h1>
-<p>This application is designed to collect and display request statistics.</p>
-<p>Built with Flask and simple HTML pages.</p>
+    <h1>About This Project</h1>
+    <p>This application is part of a thesis project on automating Kubernetes environments.</p>
+    <p>It exposes metrics on the <code>/metrics</code> endpoint for Prometheus and logs to stdout for Loki.</p>
 {% endblock %}

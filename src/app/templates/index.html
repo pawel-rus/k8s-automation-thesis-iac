@@ -1,14 +1,9 @@
 {% extends "base.html" %}
 
-{% block title %}Home{% endblock %}
-
 {% block content %}
-<h1>Welcome to the Home Page!</h1>
-<p>This is a sample homepage for the application.</p>
-
-<div class="button-container">
-    <a href="{{ url_for('main.about') }}" class="button">About Us</a>
-    <a href="{{ url_for('main.contact') }}" class="button">Contact</a>
-    <a href="{{ url_for('main.stats') }}" class="button">Statistics</a>
-</div>
+    <h1>Welcome to the Monitored Application</h1>
+    <p>This is the main page of our Flask application, which is being monitored by Prometheus and Grafana.</p>
+    <div class="button-container">
+        <a href="{{ url_for('main.about') }}" class="button">Learn More</a>
+    </div>
 {% endblock %}
