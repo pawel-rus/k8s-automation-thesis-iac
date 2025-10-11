@@ -78,9 +78,11 @@ EOF
 echo "Inventory generated in file $INVENTORY_FILE"
 
 # Add master and worker hosts to known_hosts to avoid SSH key confirmation
-echo "Adding hosts to ~/.ssh/known_hosts to avoid SSH key confirmation..."
-ssh-keyscan -H "$MASTER_IP" >> ~/.ssh/known_hosts 2>/dev/null
-for ip in "${WORKER_IPS[@]}"; do
-  ssh-keyscan -H "$ip" >> ~/.ssh/known_hosts 2>/dev/null
+echo "Adding hosts via actual SSH session to known_hosts (using accept-new)..."
+# dołącz master
+ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes ubuntu@"$MASTER_ID" exit 2>/dev/null || true
+
+for id in "${WORKER_IDS[@]}"; do
+  ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes ubuntu@"$id" exit 2>/dev/null || true
 done
-echo "Hosts added to known_hosts successfully."
+echo "Done."
