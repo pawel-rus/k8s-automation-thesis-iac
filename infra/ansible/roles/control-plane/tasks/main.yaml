@@ -1,6 +1,15 @@
 ---
+- name: Create kubeadm-config.yaml file on the master node
+  ansible.builtin.template:
+    src: kubeadm-config.yaml.j2
+    dest: /tmp/kubeadm-config.yaml
+    owner: root
+    group: root
+    mode: '0644'
+
 - name: Initialize Kubernetes master node
-  command: kubeadm init --pod-network-cidr={{ pod_network_cidr }} --apiserver-advertise-address={{ master_node_ip }}
+  # command: kubeadm init --pod-network-cidr={{ pod_network_cidr }} --apiserver-advertise-address={{ master_node_ip }}
+  command: kubeadm init --config /tmp/kubeadm-config.yaml --upload-certs
   register: kubeadm_init
   args:
     creates: /etc/kubernetes/admin.conf
@@ -34,7 +43,7 @@
   replace:
     path: "./../.kubeconfigs/{{ project_env }}-kubeconfig"
     regexp: 'server: https://[0-9\.]+:6443'
-    replace: "server: https://{{ hostvars['master'].ansible_host }}:6443"
+    replace: "server: https://{{ master_public_ip }}:6443"
   delegate_to: localhost
   become: no
   
