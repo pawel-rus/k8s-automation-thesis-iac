@@ -2,10 +2,17 @@ replicaCount: 1
 
 image:
   repository: pawelrus1/k8s-automation-thesis-iac
-  tag: latest
+  tag: ""
   pullPolicy: IfNotPresent
 
 service:
-  type: NodePort
+  type: ClusterIP
+  port: 80
+
+container:
   port: 5000
-  nodePort: 30080
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/path: "/metrics"
+  prometheus.io/port: "5000"
