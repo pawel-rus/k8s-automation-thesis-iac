@@ -1,0 +1,59 @@
+alertmanager:
+  enabled: false
+
+# Configuration of Prometheus
+prometheus:
+  prometheusSpec:
+    retention: 10d
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: gp2
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 5Gi
+
+# --- Grafana Configuration ---
+grafana:
+  enabled: true
+  adminPassword: "prom-operator" # to be changed
+
+  # Ingress for Grafana
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    hosts:
+      - grafana.local
+    path: /
+    pathType: Prefix
+
+  # Configuration of additional data sources (Loki).
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      url: http://loki-stack.monitoring.svc.cluster.local:3100
+      access: proxy
+      isDefault: false
+
+  # Konfiguracja automatycznego wgrywania dashboardów.
+  dashboardProviders:
+    dashboard-provider.yaml:
+      apiVersion: 1
+      providers:
+        - name: 'default'
+          orgId: 1
+          folder: 'My-App'
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/default
+
+  # Definition of dashboards to be loaded.
+  dashboards:
+    default:
+      # Name of the key in ConfigMap. Must be unique.
+      flask-app-overview:
+        # Pointing to the JSON file with the dashboard definition.
+        file: dashboards/flask-app-dashboard.json

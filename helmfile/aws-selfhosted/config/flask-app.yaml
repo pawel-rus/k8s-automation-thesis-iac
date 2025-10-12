@@ -1,9 +1,27 @@
-# - replicaCount: 1
-#   image:
-#     repository: pawelrus1/k8s-automation-thesis-iac
-#     tag: latest
-#   service:
-#     type: LoadBalancer 
-#     port: 80
-#   ingress:
-#     enabled: false
+replicaCount: 2
+image:
+  # repository: pawelrus1/k8s-automation-thesis-iac
+  tag: 'v1.1.0'
+
+service:
+  type: ClusterIP
+  port: 80
+
+resources:
+  limits:
+    cpu: 200m     # 0.2  CPU
+    memory: 256Mi # 256 MB RAM
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+  hosts:
+    - host: flask-app.local 
+      paths:
+      - path: /
+        pathType: Prefix

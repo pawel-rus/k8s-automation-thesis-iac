@@ -1,0 +1,18 @@
+serviceAccount:
+  create: true
+  name: k8s-dashboard-admin
+
+rbac:
+  create: true
+  clusterAdminRole: true
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+  hosts:
+    - host: k8s-dashboard.local
+      paths:
+      - path: /
+        pathType: Prefix
