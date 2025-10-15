@@ -3,7 +3,7 @@ provider "aws" {
 }
 
 locals {
-  availability_zones = ["${var.aws_region}a", "${var.aws_region}b"]
+  availability_zones = ["${var.aws_region}b", "${var.aws_region}c"]
 }
 
 
@@ -18,6 +18,7 @@ resource "aws_vpc" "main" {
   enable_dns_hostnames = true
   tags = {
     Name = "${var.cluster_name}-vpc"
+    "kubernetes.io/cluster/${var.cluster_name}" = "owned"
   }
 }
 
@@ -40,7 +41,7 @@ resource "aws_subnet" "public" {
   availability_zone       = local.availability_zones[count.index]
   tags = {
     Name = "${var.cluster_name}-public-subnet-${count.index + 1}"
-    "kubernetes.io/cluster/${var.cluster_name}" = "shared"
+    "kubernetes.io/cluster/${var.cluster_name}" = "owned"
     "kubernetes.io/role/elb" = "1" # tag for load balancers
   }
 }
@@ -54,7 +55,7 @@ resource "aws_subnet" "private" {
   availability_zone = local.availability_zones[count.index]
   tags = {
     Name = "${var.cluster_name}-private-subnet-${count.index + 1}"
-    "kubernetes.io/cluster/${var.cluster_name}" = "shared"
+    "kubernetes.io/cluster/${var.cluster_name}" = "owned"
     "kubernetes.io/role/internal-elb" = "1" # tag for private load balancers
   }
 }
@@ -187,7 +188,10 @@ resource "aws_security_group" "k8s" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = { Name = "${var.cluster_name}-k8s-sg" }
+  tags = {
+    Name = "${var.cluster_name}-k8s-sg"
+    "kubernetes.io/cluster/${var.cluster_name}" = "owned"
+  }
 
   # # SSH
   # ingress {
@@ -257,6 +261,107 @@ resource "aws_iam_role_policy_attachment" "ssm_policy" {
   role       = aws_iam_role.k8s_node_role.name
 }
 
+#### MAKE SURE WE NEED THIS ####
+# Attach the policy required for managing Elastic Load Balancers (for Ingress Controller)
+# resource "aws_iam_role_policy_attachment" "elb_management_policy" {
+#   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2FullAccess" 
+#   role       = aws_iam_role.k8s_node_role.name
+# }
+
+# <<< START NOWEGO FRAGMENTU >>>
+
+# Polityka dla AWS Cloud Controller Managera
+resource "aws_iam_policy" "ccm_policy" {
+  name        = "${var.cluster_name}-ccm-policy"
+  description = "IAM policy for the AWS Cloud Controller Manager"
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Action = [
+          # --- Podstawowe uprawnienia IAM ---
+          "iam:CreateServiceLinkedRole", # Pozwala na jednorazowe stworzenie roli dla usługi ELB
+
+          # --- Uprawnienia EC2 (dla Security Groups, Network Interfaces, etc.) ---
+           "ec2:AuthorizeSecurityGroupIngress",
+          "ec2:CreateSecurityGroup",
+          "ec2:CreateTags",
+          "ec2:DeleteSecurityGroup",
+          "ec2:DeleteTags",
+          "ec2:DescribeAccountAttributes",
+          "ec2:DescribeAddresses",
+          "ec2:DescribeAvailabilityZones",
+          "ec2:DescribeInstances",
+          "ec2:DescribeInternetGateways",
+          "ec2:DescribeNetworkInterfaces",
+          "ec2:DescribePrefixLists",
+          "ec2:DescribeRouteTables", # <-- BRAKUJĄCY ELEMENT Z POPRZEDNIEJ PRÓBY
+          "ec2:DescribeSecurityGroups",
+          "ec2:DescribeSubnets",
+          "ec2:DescribeTags",
+          "ec2:DescribeVpcs",
+          "ec2:ModifyNetworkInterfaceAttribute",
+          "ec2:RevokeSecurityGroupIngress",
+
+          # --- Uprawnienia Elastic Load Balancing (Pełny cykl życia) ---
+          "elasticloadbalancing:AddTags",
+          "elasticloadbalancing:CreateListener",
+          "elasticloadbalancing:CreateLoadBalancer",
+          "elasticloadbalancing:CreateRule",
+          "elasticloadbalancing:CreateTargetGroup",
+          "elasticloadbalancing:DeleteListener",
+          "elasticloadbalancing:DeleteLoadBalancer",
+          "elasticloadbalancing:DeleteRule",
+          "elasticloadbalancing:DeleteTargetGroup",
+          "elasticloadbalancing:DeregisterTargets",
+          "elasticloadbalancing:DescribeListenerCertificates",
+          "elasticloadbalancing:DescribeListeners",
+          "elasticloadbalancing:DescribeLoadBalancerAttributes",
+          "elasticloadbalancing:DescribeLoadBalancers",
+          "elasticloadbalancing:DescribeRules",
+          "elasticloadbalancing:DescribeSSLPolicies",
+          "elasticloadbalancing:DescribeTags",
+          "elasticloadbalancing:DescribeTargetGroupAttributes",
+          "elasticloadbalancing:DescribeTargetGroups",
+          "elasticloadbalancing:DescribeTargetHealth",
+          "elasticloadbalancing:ModifyListener",
+          "elasticloadbalancing:ModifyLoadBalancerAttributes",
+          "elasticloadbalancing:ModifyRule",
+          "elasticloadbalancing:ModifyTargetGroup",
+          "elasticloadbalancing:ModifyTargetGroupAttributes",
+          "elasticloadbalancing:RegisterTargets",
+          "elasticloadbalancing:RemoveTags",
+          "elasticloadbalancing:SetIpAddressType",
+          "elasticloadbalancing:SetSecurityGroups",
+          "elasticloadbalancing:SetSubnets",
+          
+          # --- Dodatkowe uprawnienia (przydatne przy certyfikatach i WAF) ---
+          "acm:DescribeCertificate",
+          "acm:ListCertificates",
+          "waf-regional:GetWebACLForResource",
+          "waf-regional:AssociateWebACL",
+          "waf-regional:DisassociateWebACL",
+          "shield:DescribeProtection",
+          "shield:GetSubscriptionState",
+          "shield:CreateProtection",
+          "shield:DeleteProtection"
+        ],
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+# Dołącz nową politykę do roli węzłów
+resource "aws_iam_role_policy_attachment" "ccm_policy_attachment" {
+  policy_arn = aws_iam_policy.ccm_policy.arn
+  role       = aws_iam_role.k8s_node_role.name
+}
+
+# <<< KONIEC NOWEGO FRAGMENTU >>>
+
 # Create an instance profile to pass the IAM role to the EC2 instances.
 resource "aws_iam_instance_profile" "k8s_node_profile" {
   name = "${var.cluster_name}-node-profile"
@@ -297,8 +402,16 @@ resource "aws_instance" "master" {
   subnet_id = aws_subnet.public[0].id
   vpc_security_group_ids = [aws_security_group.k8s.id]
   iam_instance_profile   = aws_iam_instance_profile.k8s_node_profile.name
+  
+  root_block_device {
+    volume_size = 15
+    volume_type = "gp3"
+  }
+  
   tags = {
     Name = "${var.cluster_name}-master"
+    "kubernetes.io/cluster/${var.cluster_name}" = "owned"
+
   }
 }
 
@@ -311,7 +424,14 @@ resource "aws_instance" "workers" {
   subnet_id     = aws_subnet.private[count.index % 2].id # Distribute workers across private subnets
   vpc_security_group_ids = [aws_security_group.k8s.id]
   iam_instance_profile   = aws_iam_instance_profile.k8s_node_profile.name
+  
+  root_block_device {
+    volume_size = 15
+    volume_type = "gp3"
+  }
+
   tags = {
     Name = "${var.cluster_name}-worker-${count.index + 1}"
+    "kubernetes.io/cluster/${var.cluster_name}" = "owned"
   }
 }
