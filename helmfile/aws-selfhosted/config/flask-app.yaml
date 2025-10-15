@@ -1,4 +1,4 @@
-replicaCount: 2
+replicaCount: 1
 image:
   # repository: pawelrus1/k8s-automation-thesis-iac
   tag: 'v1.1.0'
@@ -21,7 +21,7 @@ ingress:
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /
   hosts:
-    - host: flask-app.local 
+    - host: "flask-app.aws-selfhosted"
       paths:
       - path: /
         pathType: Prefix
