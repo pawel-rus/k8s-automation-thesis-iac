@@ -7,6 +7,27 @@
     group: root
     mode: '0644'
 
+# - name: Pull pause image for kubelet
+#   ansible.builtin.command: ctr -n k8s.io images pull registry.k8s.io/pause:3.10
+#   ignore_errors: yes
+
+# - name: Ensure containerd uses correct pause image
+#   blockinfile:
+#     path: /etc/containerd/config.toml
+#     #marker: "# {mark} ANSIBLE MANAGED PAUSE IMAGE"
+#     block: |
+#       sandbox_image = "registry.k8s.io/pause:3.10"
+#     insertafter: 'enable_tls_streaming'
+
+# - name: Restart containerd and kubelet
+#   systemd:
+#     name: "{{ item }}"
+#     state: restarted
+#     daemon_reload: yes
+#   loop:
+#     - containerd
+#     - kubelet
+
 - name: Initialize Kubernetes master node
   # command: kubeadm init --pod-network-cidr={{ pod_network_cidr }} --apiserver-advertise-address={{ master_node_ip }}
   command: kubeadm init --config /tmp/kubeadm-config.yaml --upload-certs
@@ -75,6 +96,12 @@
 
 # - name: Apply the modified Calico network plugin
 #   command: kubectl apply -f /tmp/calico.yaml
+#   environment:
+#     KUBECONFIG: /etc/kubernetes/admin.conf
+
+# - name: Apply AWS Cloud Controller Manager manifests
+#   ansible.builtin.command: >
+#     kubectl apply -f https://raw.githubusercontent.com/kubernetes/cloud-provider-aws/main/manifests/deploy/aws-cloud-controller-manager.yaml
 #   environment:
 #     KUBECONFIG: /etc/kubernetes/admin.conf
 

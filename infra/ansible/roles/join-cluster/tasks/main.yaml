@@ -1,4 +1,26 @@
 ---
+- name: Create directory for kubelet extra configuration
+  file:
+    path: /etc/systemd/system/kubelet.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Create kubelet drop-in config file to enable AWS cloud provider
+  copy:
+    dest: /etc/systemd/system/kubelet.service.d/20-aws.conf
+    content: |
+      [Service]
+      Environment="KUBELET_EXTRA_ARGS=--cloud-provider=external --cgroup-driver=systemd"
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Reload systemd to ensure it reads the new kubelet config
+  systemd:
+    daemon_reload: yes
+
 - name: Join worker to cluster
   command: "{{ hostvars[groups['kube_control_plane'][0]].worker_join_cmd }}"
   args:
