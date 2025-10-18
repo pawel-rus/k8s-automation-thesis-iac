@@ -6,7 +6,6 @@ locals {
   availability_zones = ["${var.aws_region}b", "${var.aws_region}c"]
 }
 
-
 #================================================================
 # NETWORKING
 #================================================================
@@ -21,15 +20,6 @@ resource "aws_vpc" "main" {
     "kubernetes.io/cluster/${var.cluster_name}" = "owned"
   }
 }
-
-# Subnet
-# resource "aws_subnet" "main" {
-#   vpc_id                  = aws_vpc.main.id
-#   cidr_block              = "10.0.0.0/16"
-#   map_public_ip_on_launch = true
-#   availability_zone       = "${var.aws_region}a"
-#   tags = { Name = "${var.cluster_name}-subnet" }
-# }
 
 # Two public subnets for High Availability across two AZs 
 # for resources that need direct internet access: master node and load balancers.
@@ -116,30 +106,6 @@ resource "aws_route_table_association" "private" {
 # SECURITY
 #================================================================
 
-# # Security Group for Bastion host
-# resource "aws_security_group" "bastion" {
-#   name        = "${var.cluster_name}-bastion-sg"
-#   description = "Allow SSH access to bastion host"
-#   vpc_id      = aws_vpc.main.id
-
-#   ingress {
-#     description = "SSH from my IP"
-#     from_port   = 22
-#     to_port     = 22
-#     protocol    = "tcp"
-#     cidr_blocks = ["${var.my_ip}/32"]
-#   }
-
-#   egress {
-#     from_port   = 0
-#     to_port     = 0
-#     protocol    = "-1"
-#     cidr_blocks = ["0.0.0.0/0"]
-#   }
-
-#   tags = { Name = "${var.cluster_name}-bastion-sg" }
-# }
-
 # Security group for the Kubernetes nodes.
 resource "aws_security_group" "k8s" {
   name        = "${var.cluster_name}-k8s-sg"
@@ -192,43 +158,6 @@ resource "aws_security_group" "k8s" {
     Name = "${var.cluster_name}-k8s-sg"
     "kubernetes.io/cluster/${var.cluster_name}" = "owned"
   }
-
-  # # SSH
-  # ingress {
-  #   description = "SSH"
-  #   from_port   = 22
-  #   to_port     = 22
-  #   protocol    = "tcp"
-  #   cidr_blocks = ["0.0.0.0/0"]
-  # }
-
- 
-
-  # # Calico BGP (TCP 179)
-  # ingress {
-  #   description = "Calico BGP"
-  #   from_port   = 179
-  #   to_port     = 179
-  #   protocol    = "tcp"
-  #   cidr_blocks = ["10.0.0.0/16"]
-  # }
-
-  # # Calico VXLAN (UDP 4789)
-  # ingress {
-  #   description = "Calico VXLAN"
-  #   from_port   = 4789
-  #   to_port     = 4789
-  #   protocol    = "udp"
-  #   cidr_blocks = ["10.0.0.0/16"]
-  # }
-
-  # ingress {
-  # description = "Flask NodePort"
-  # from_port   = 30080
-  # to_port     = 30080
-  # protocol    = "tcp"
-  # cidr_blocks = ["0.0.0.0/0"]
-  # }
 }
 
 #================================================================
@@ -268,9 +197,8 @@ resource "aws_iam_role_policy_attachment" "ssm_policy" {
 #   role       = aws_iam_role.k8s_node_role.name
 # }
 
-# <<< START NOWEGO FRAGMENTU >>>
 
-# Polityka dla AWS Cloud Controller Managera
+# Policy for AWS Cloud Controller Manager
 resource "aws_iam_policy" "ccm_policy" {
   name        = "${var.cluster_name}-ccm-policy"
   description = "IAM policy for the AWS Cloud Controller Manager"
@@ -281,11 +209,8 @@ resource "aws_iam_policy" "ccm_policy" {
       {
         Effect = "Allow",
         Action = [
-          # --- Podstawowe uprawnienia IAM ---
-          "iam:CreateServiceLinkedRole", # Pozwala na jednorazowe stworzenie roli dla usługi ELB
-
-          # --- Uprawnienia EC2 (dla Security Groups, Network Interfaces, etc.) ---
-           "ec2:AuthorizeSecurityGroupIngress",
+          "iam:CreateServiceLinkedRole", 
+          "ec2:AuthorizeSecurityGroupIngress",
           "ec2:CreateSecurityGroup",
           "ec2:CreateTags",
           "ec2:DeleteSecurityGroup",
@@ -297,15 +222,14 @@ resource "aws_iam_policy" "ccm_policy" {
           "ec2:DescribeInternetGateways",
           "ec2:DescribeNetworkInterfaces",
           "ec2:DescribePrefixLists",
-          "ec2:DescribeRouteTables", # <-- BRAKUJĄCY ELEMENT Z POPRZEDNIEJ PRÓBY
+          "ec2:DescribeRouteTables",
           "ec2:DescribeSecurityGroups",
           "ec2:DescribeSubnets",
           "ec2:DescribeTags",
           "ec2:DescribeVpcs",
           "ec2:ModifyNetworkInterfaceAttribute",
           "ec2:RevokeSecurityGroupIngress",
-
-          # --- Uprawnienia Elastic Load Balancing (Pełny cykl życia) ---
+          # Permissions for Elastic Load Balancing
           "elasticloadbalancing:AddTags",
           "elasticloadbalancing:CreateListener",
           "elasticloadbalancing:CreateLoadBalancer",
@@ -336,8 +260,7 @@ resource "aws_iam_policy" "ccm_policy" {
           "elasticloadbalancing:SetIpAddressType",
           "elasticloadbalancing:SetSecurityGroups",
           "elasticloadbalancing:SetSubnets",
-          
-          # --- Dodatkowe uprawnienia (przydatne przy certyfikatach i WAF) ---
+          # Permissions for ACM (for SSL/TLS certificates)
           "acm:DescribeCertificate",
           "acm:ListCertificates",
           "waf-regional:GetWebACLForResource",
@@ -354,13 +277,10 @@ resource "aws_iam_policy" "ccm_policy" {
   })
 }
 
-# Dołącz nową politykę do roli węzłów
 resource "aws_iam_role_policy_attachment" "ccm_policy_attachment" {
   policy_arn = aws_iam_policy.ccm_policy.arn
   role       = aws_iam_role.k8s_node_role.name
 }
-
-# <<< KONIEC NOWEGO FRAGMENTU >>>
 
 # Create an instance profile to pass the IAM role to the EC2 instances.
 resource "aws_iam_instance_profile" "k8s_node_profile" {
