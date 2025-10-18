@@ -69,3 +69,4 @@ id_ed25519*
 Thumbs.db
 
 venv/
+/src/app/__pycache__
