@@ -70,3 +70,4 @@ Thumbs.db
 
 venv/
 /src/app/__pycache__
+*.pyc
