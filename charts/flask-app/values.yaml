@@ -12,7 +12,10 @@ service:
 container:
   port: 5000
 
-podAnnotations:
-  prometheus.io/scrape: "true"
-  prometheus.io/path: "/metrics"
-  prometheus.io/port: "5000"
+serviceMonitor:
+  enabled: true
+  labels:
+    release: kube-prometheus-stack
+  path: /metrics
+  interval: 15s
+  scrapeTimeout: 10s
