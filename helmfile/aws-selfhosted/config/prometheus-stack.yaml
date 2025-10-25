@@ -4,6 +4,7 @@ alertmanager:
 # Configuration of Prometheus
 prometheus:
   prometheusSpec:
+    replicas: 1
     retention: 10d
     storageSpec:
       volumeClaimTemplate:
@@ -12,19 +13,20 @@ prometheus:
           accessModes: ["ReadWriteOnce"]
           resources:
             requests:
-              storage: 5Gi
+              storage: 1Gi
 
 # --- Grafana Configuration ---
 grafana:
   enabled: true
-  adminPassword: "prom-operator" # to be changed
+  replicas: 1
+  adminPassword: "prom-operator" # to be changed in CICD secrets
 
   # Ingress for Grafana
   ingress:
     enabled: true
     ingressClassName: nginx
     hosts:
-      - grafana.local
+      - grafana.aws-selfhosted
     path: /
     pathType: Prefix
 
@@ -36,7 +38,7 @@ grafana:
       access: proxy
       isDefault: false
 
-  # Konfiguracja automatycznego wgrywania dashboardów.
+  # Configuration of automatic dashboard provisioning.
   dashboardProviders:
     dashboard-provider.yaml:
       apiVersion: 1

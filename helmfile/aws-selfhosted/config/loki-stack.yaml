@@ -2,10 +2,11 @@ loki:
   persistence:
     enabled: true
     storageClassName: gp2
-    size: 20Gi
+    size: 1Gi
 
 # Promtail configuration
 promtail:
+  replicas: 1
   enabled: true
 
 # We disable Grafana in this stack because we use the one from kube-prometheus-stack.

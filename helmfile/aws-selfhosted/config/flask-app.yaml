@@ -1,7 +1,7 @@
 replicaCount: 1
 image:
   # repository: pawelrus1/k8s-automation-thesis-iac
-  tag: 'v1.1.0'
+  tag: 'v1.2.1'
 
 service:
   type: ClusterIP

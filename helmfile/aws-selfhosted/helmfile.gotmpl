@@ -3,12 +3,14 @@ repositories:
     url: https://kubernetes-sigs.github.io/aws-ebs-csi-driver/
   - name: ingress-nginx
     url: https://kubernetes.github.io/ingress-nginx
-  - name: kubernetes-dashboard
-    url: https://kubernetes.github.io/dashboard/
+ # - name: kubernetes-dashboard
+ #   url: https://kubernetes.github.io/dashboard/
   - name: prometheus-community
     url: https://prometheus-community.github.io/helm-charts
   - name: grafana
     url: https://grafana.github.io/helm-charts
+ # - name: aws-ccm
+ #   url: https://kubernetes.github.io/cloud-provider-aws
   
 releases:
  # - name: prometheus-operator-crds
@@ -16,12 +18,30 @@ releases:
  #   createNamespace: true
  #   chart: prometheus-community/prometheus-operator-crds
  #   version: 15.0.0
+ # - name: aws-cloud-controller-manager
+ #  namespace: kube-system
+ #   createNamespace: true
+ #   chart: aws-ccm/aws-cloud-controller-manager
+ #   version: 0.0.10
+ #   values:
+ #     - image:
+ #         repository: registry.k8s.io/provider-aws/cloud-controller-manager
+ #         tag: v1.31.0
+ #     - args:
+ #        - --v=2
+ #         - --cloud-provider=aws
+ #         - --use-service-account-credentials=true
+ #    - tolerations: []       
+ #     - nodeSelector: {}  
+
 
   - name: aws-ebs-csi-driver
     namespace: kube-system 
     createNamespace: false 
     chart: aws-ebs-csi-driver/aws-ebs-csi-driver
     version: 2.49.0
+    values:
+      - ./config/aws-ebs-csi.yaml
 
   - name: ingress-nginx
     namespace: ingress-nginx
@@ -41,13 +61,13 @@ releases:
     values:
       - ./config/flask-app.yaml
   
-  - name: kubernetes-dashboard
-    namespace: kubernetes-dashboard
-    createNamespace: true
-    chart: kubernetes-dashboard/kubernetes-dashboard
-    version: 7.13.0
-    values:
-      - ./config/kubernetes-dashboard.yaml
+ # - name: kubernetes-dashboard
+ #   namespace: kubernetes-dashboard
+ #   createNamespace: true
+ #   chart: kubernetes-dashboard/kubernetes-dashboard
+ #   version: 7.13.0
+ #   values:
+ #     - ./config/kubernetes-dashboard.yaml
 
   - name: kube-prometheus-stack
     needs:
