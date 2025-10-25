@@ -3,4 +3,4 @@ name: flask-app
 description: A Helm chart for the Flask web application for the thesis project.
 type: application
 version: "0.2.0"
-appVersion: "v1.2.0"
+appVersion: "v1.2.1"
