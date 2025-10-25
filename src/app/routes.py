@@ -3,6 +3,9 @@ import logging
 from flask import Blueprint, render_template, request, Response, redirect, url_for, jsonify
 from prometheus_client import Counter, Histogram, generate_latest, Gauge
 
+werkzeug_logger = logging.getLogger('werkzeug')
+werkzeug_logger.setLevel(logging.ERROR)
+
 class CustomFormatter(logging.Formatter):
     """
     Custom logging formatter to include request details."""
@@ -28,9 +31,9 @@ logger.addHandler(handler)
 
 logger.propagate = False
 
-REQUESTS_TOTAL = Counter('flask_app_requests_total', 'Total HTTP Requests', ['method', 'endpoint', 'http_status'])
-REQUEST_LATENCY = Histogram('flask_app_request_latency_seconds', 'HTTP Request Latency in seconds', ['method', 'endpoint'])
-ACTIVE_REQUESTS = Gauge('flask_app_active_requests', 'Number of active requests currently being processed', ['method', 'endpoint'])
+REQUESTS_TOTAL = Counter('flask_app_requests_total', 'Total HTTP Requests', ['method', 'path', 'http_status'])
+REQUEST_LATENCY = Histogram('flask_app_request_latency_seconds', 'HTTP Request Latency in seconds', ['method', 'path'])
+ACTIVE_REQUESTS = Gauge('flask_app_active_requests', 'Number of active requests currently being processed', ['method', 'path'])
 LOGIN_ATTEMPTS_TOTAL = Counter('flask_app_login_attempts_total', 'Total login attempts', ['status'])
 
 main_bp = Blueprint('main', __name__)
