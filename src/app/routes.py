@@ -1,13 +1,11 @@
 import time
 import logging
-from flask import Blueprint, render_template, request, Response, redirect, url_for
+from flask import Blueprint, render_template, request, Response, redirect, url_for, jsonify
 from prometheus_client import Counter, Histogram, generate_latest, Gauge
 
 class CustomFormatter(logging.Formatter):
     """
-    Niestandardowy formatter, który dodaje domyślne wartości dla naszych pól,
-    jeśli nie są one obecne w rekordzie logu.
-    """
+    Custom logging formatter to include request details."""
     def format(self, record):
         record.ip = getattr(record, 'ip', '-')
         record.method = getattr(record, 'method', '-')
@@ -47,6 +45,8 @@ def before_request_handler():
 
 @main_bp.after_request
 def after_request_handler(response):
+    if request.path == '/healthz':
+        return response
     ACTIVE_REQUESTS.labels(request.method, request.path).dec()
     latency = time.time() - request.start_time
     REQUEST_LATENCY.labels(request.method, request.path).observe(latency)
@@ -61,6 +61,12 @@ def after_request_handler(response):
     logger.info(f"Request processed in {latency:.4f}s", extra=extra_info)
     return response
 
+@main_bp.route('/healthz')
+def healthz():
+    """
+    Health check endpoint.
+    """
+    return jsonify(status="ok"), 200
 
 @main_bp.route('/')
 def index():
