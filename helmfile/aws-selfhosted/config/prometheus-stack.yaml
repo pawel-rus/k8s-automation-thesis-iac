@@ -58,4 +58,4 @@ grafana:
       # Name of the key in ConfigMap. Must be unique.
       flask-app-overview:
         # Pointing to the JSON file with the dashboard definition.
-        file: dashboards/flask-app-dashboard.json
+        json: ""
