@@ -13,3 +13,13 @@
   become: yes
   roles:
     - join-cluster
+
+- hosts: kube_control_plane
+  become: no
+  roles:
+    - configure-cloud-integration
+
+- hosts: localhost
+  gather_facts: no
+  roles:
+    - prometheus-crds-and-ebs-csi

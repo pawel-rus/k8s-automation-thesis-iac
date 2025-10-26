@@ -1,0 +1,59 @@
+---
+- name: Read Terraform outputs from file
+  ansible.builtin.include_vars:
+    file: "{{ playbook_dir }}/../terraform/envs/{{ project_env }}/tf_outputs.json"
+    name: tf_outputs
+
+- name: Get EC2 instance facts for all nodes
+  amazon.aws.ec2_instance_info:
+    instance_ids: >
+      {{ [tf_outputs.master_instance_id.value] + tf_outputs.worker_instance_ids.value }}
+  register: ec2_facts
+  delegate_to: localhost
+
+- name: Display summary of fetched instances (debug)
+  ansible.builtin.debug:
+    msg: >
+      "Found instance {{ item.instance_id }} in {{ item.placement.availability_zone }}
+      (private IP: {{ item.private_ip_address }})"
+  loop: "{{ ec2_facts.instances }}"
+  loop_control:
+    label: "{{ item.instance_id }}"
+
+- name: Patch each node (hostname = ip-<private_ip>) with its AWS providerID
+  kubernetes.core.k8s:
+    api_version: v1
+    kind: Node
+    name: "ip-{{ item.private_ip_address | replace('.', '-') }}"
+    definition:
+      spec:
+        providerID: "aws:///{{ item.placement.availability_zone }}/{{ item.instance_id }}"
+    state: patched
+    kubeconfig: "{{ playbook_dir }}/../.kubeconfigs/{{ project_env }}-kubeconfig"
+  loop: "{{ ec2_facts.instances }}"
+  loop_control:
+    label: "ip-{{ item.private_ip_address | replace('.', '-') }}"
+  delegate_to: localhost
+  run_once: true
+
+- name: Print completion message
+  ansible.builtin.debug:
+    msg: "All nodes patched successfully for environment '{{ project_env }}'."
+    
+- name: Apply AWS Cloud Controller Manager manifests
+  kubernetes.core.k8s:
+    kubeconfig: "{{ playbook_dir }}/../.kubeconfigs/{{ project_env }}-kubeconfig"
+    state: present
+    src: "{{ item }}"
+  loop: "{{ lookup('ansible.builtin.fileglob', playbook_dir + '/manifests/aws-ccm/*.yaml', wantlist=True) 
+           | reject('search', 'kustomization.yaml') | list }}"
+  delegate_to: localhost
+  run_once: true
+
+- name: Apply default gp2 StorageClass manifest
+  kubernetes.core.k8s:
+    state: present
+    src: "{{ playbook_dir }}/manifests/storageclass-gp2.yaml"
+    kubeconfig: "{{ playbook_dir }}/../.kubeconfigs/{{ project_env }}-kubeconfig"
+  delegate_to: localhost
+  run_once: true

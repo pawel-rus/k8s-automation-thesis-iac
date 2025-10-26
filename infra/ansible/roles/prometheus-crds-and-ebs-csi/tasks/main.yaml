@@ -1,0 +1,47 @@
+---
+- name: Add Prometheus Helm repository
+  community.kubernetes.helm_repository:
+    name: prometheus-community
+    repo_url: https://prometheus-community.github.io/helm-charts
+    kubeconfig: "{{ playbook_dir }}/../.kubeconfigs/{{ project_env }}-kubeconfig"
+  delegate_to: localhost
+  run_once: true
+
+- name: Add AWS EBS CSI Driver Helm repository
+  community.kubernetes.helm_repository:
+    name: aws-ebs-csi-driver
+    repo_url: https://kubernetes-sigs.github.io/aws-ebs-csi-driver/
+    kubeconfig: "{{ playbook_dir }}/../.kubeconfigs/{{ project_env }}-kubeconfig"
+  delegate_to: localhost
+  run_once: true
+
+- name: Update Helm repositories
+  ansible.builtin.command: helm repo update
+  delegate_to: localhost
+  environment:
+    KUBECONFIG: "{{ playbook_dir }}/../.kubeconfigs/{{ project_env }}-kubeconfig"
+  run_once: true
+
+- name: Install Prometheus Operator CRDs
+  community.kubernetes.helm:
+    name: prometheus-operator-crds
+    chart_ref: prometheus-community/prometheus-operator-crds
+    chart_version: 15.0.0
+    namespace: monitoring
+    create_namespace: true
+    state: present
+    kubeconfig: "{{ playbook_dir }}/../.kubeconfigs/{{ project_env }}-kubeconfig"
+  delegate_to: localhost
+  run_once: true
+
+- name: Install AWS EBS CSI Driver
+  community.kubernetes.helm:
+    name: aws-ebs-csi-driver
+    chart_ref: aws-ebs-csi-driver/aws-ebs-csi-driver
+    chart_version: 2.49.0
+    namespace: kube-system
+    create_namespace: false
+    state: present
+    kubeconfig: "{{ playbook_dir }}/../.kubeconfigs/{{ project_env }}-kubeconfig"
+  delegate_to: localhost
+  run_once: true
