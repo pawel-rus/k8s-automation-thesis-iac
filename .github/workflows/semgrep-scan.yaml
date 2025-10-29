@@ -41,9 +41,9 @@ jobs:
       - name: Upload HTML Semgrep report for ${{ matrix.scan.name }}
         uses: actions/upload-artifact@v4
         with:
-          name: semgrep-reports
+          name: semgrep-report-${{ matrix.scan.name }}
           path: semgrep-report-${{ matrix.scan.name }}.html
-          retention-days: 3
+          retention-days: 1
 
   secret-scan:
     name: TruffleHog Secret Scan
@@ -58,7 +58,29 @@ jobs:
           fetch-depth: 0
 
       - name: Run TruffleHog scan
-        uses: trufflehog/trufflehog-actions@main
+        uses: trufflesecurity/trufflehog@main
         with:
           path: .
 
+  package-reports:
+    name: Package Scans Reports
+    runs-on: ubuntu-latest
+    needs: sast-scans
+    
+    steps:
+      - name: Download all individual reports
+        uses: actions/download-artifact@v4
+        with:
+          path: all-reports
+          pattern: semgrep-report-*
+          merge-multiple: true
+
+      - name: Zip all reports
+        run: zip -r semgrep-reports.zip all-reports
+
+      - name: Upload final ZIP archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: semgrep-reports-archive
+          path: semgrep-reports.zip
+          retention-days: 7
