@@ -66,6 +66,9 @@ jobs:
   zap-dast-scan:
     name: OWASP ZAP DAST Scan
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: none
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -84,6 +87,7 @@ jobs:
         with:
           target: 'http://localhost:5000'
           fail_action: false
+          allow_issue_writing: false
           
       - name: Upload ZAP Scan Reports
         uses: actions/upload-artifact@v4
