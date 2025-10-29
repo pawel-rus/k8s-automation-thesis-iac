@@ -63,25 +63,55 @@ jobs:
         with:
           path: .
 
-  package-reports:
-    name: Package Semgrep Reports
+  zap-dast-scan:
+    name: OWASP ZAP DAST Scan
     runs-on: ubuntu-latest
-    needs: sast-scans
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t flask-app-dast -f ./src/Dockerfile ./src
+
+      - name: Run Docker container
+        run: docker run -d -p 5000:5000 --name flask-app-container flask-app-dast
+
+      - name: Wait for application to be ready
+        run: sleep 15
+
+      - name: Run OWASP ZAP Full Scan
+        uses: zaproxy/action-full-scan@v0.13.0
+        with:
+          target: 'http://localhost:5000'
+          fail_action: false
+          
+      - name: Upload ZAP Scan Reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-scan-reports
+          path: /zap/wrk/
+          retention-days: 1
+
+      - name: Stop and remove Docker container
+        if: always()
+        run: docker stop flask-app-container && docker rm flask-app-container
+
+  package-reports:
+    name: Package All Security Reports
+    runs-on: ubuntu-latest
+    needs: [sast-scans, zap-dast-scan, secret-scan]
     
     steps:
       - name: Download all individual reports
         uses: actions/download-artifact@v4
         with:
           path: all-reports
-          pattern: semgrep-report-*
           merge-multiple: true
-
-      - name: Zip all reports
-        run: zip -r semgrep-reports.zip all-reports
 
       - name: Upload final ZIP archive
         uses: actions/upload-artifact@v4
         with:
-          name: semgrep-reports-archive
-          path: semgrep-reports.zip
+          name: all-security-reports
+          path: all-reports/
           retention-days: 7
+  
