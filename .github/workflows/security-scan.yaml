@@ -88,14 +88,6 @@ jobs:
           target: 'http://localhost:5000'
           fail_action: false
           allow_issue_writing: false
-          cmd_options: '-r zap-report.html'
-
-      - name: Upload ZAP Scan Report
-        uses: actions/upload-artifact@v4
-        with:
-          name: zap-scan-reports
-          path: zap-report.html
-          retention-days: 1
 
       - name: Stop and remove Docker container
         if: always()
