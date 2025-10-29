@@ -88,17 +88,18 @@ jobs:
           target: 'http://localhost:5000'
           fail_action: false
           allow_issue_writing: false
-          
-      - name: Upload ZAP Scan Reports
-        uses: actions/upload-artifact@v4
-        with:
-          name: zap-scan-reports
-          path: /zap/wrk/
-          retention-days: 1
+          workspace: ${{ github.workspace }}/zap-results
 
       - name: Stop and remove Docker container
         if: always()
         run: docker stop flask-app-container && docker rm flask-app-container
+
+      - name: Upload ZAP Scan Reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-scan-report
+          path: ${{ github.workspace }}/zap-results/
+          retention-days: 1
 
   package-reports:
     name: Package All Security Reports
