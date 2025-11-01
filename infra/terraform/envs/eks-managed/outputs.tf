@@ -38,3 +38,8 @@ output "kubeconfig" {
           env: []
   EOT
 }
+
+output "worker_instance_ids" {
+  description = "IDs of the worker node instances"
+  value       = data.aws_instances.eks_worker_nodes.ids
+}

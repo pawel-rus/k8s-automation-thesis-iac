@@ -13,13 +13,13 @@ variable "cluster_name" {
 variable "k8s_version" {
   description = "Kubernetes version for the EKS cluster"
   type        = string
-  default     = "1.28"
+  default     = "1.31"
 }
 
 variable "worker_instance_type" {
   description = "EC2 instance type for the Kubernetes worker nodes"
   type        = string
-  default     = "t3.small"
+  default     = "c7i-flex.large"
 }
 
 variable "worker_count" {

@@ -2,77 +2,74 @@ provider "aws" {
   region = var.aws_region
 }
 
-# VPC
+locals {
+  availability_zones = ["${var.aws_region}b", "${var.aws_region}c"]
+}
+
+data "aws_instances" "eks_worker_nodes" {
+  depends_on = [aws_eks_node_group.node_group]
+  instance_tags = {
+    "eks:nodegroup-name" = aws_eks_node_group.node_group.node_group_name
+  }
+  instance_state_names = ["running"]
+}
+#================================================================
+# NETWORKING
+#================================================================
+
 resource "aws_vpc" "eks_vpc" {
   cidr_block = "10.0.0.0/16"
-  tags = { Name = "${var.cluster_name}-eks-vpc" }
+  enable_dns_hostnames = true
+  enable_dns_support   = true
+  tags = { 
+    Name = "${var.cluster_name}-eks-vpc" 
+  }
 }
 
-# Public Subnet 1
-resource "aws_subnet" "public_subnet_1" {
+# Two Public Subnets for Load Balancers
+resource "aws_subnet" "public" {
+  count                   = 2
   vpc_id                  = aws_vpc.eks_vpc.id
-  cidr_block              = "10.0.1.0/24"
-  availability_zone       = "${var.aws_region}a"
+  cidr_block              = "10.0.${count.index + 1}.0/24"
+  availability_zone       = local.availability_zones[count.index]
   map_public_ip_on_launch = true
   tags = {
-    "kubernetes.io/cluster/${var.cluster_name}" = "owned"
-    "kubernetes.io/role/elb"                      = "1"
-    Name                                        = "${var.cluster_name}-public-subnet-1"
+    Name                                        = "${var.cluster_name}-public-subnet-${count.index + 1}"
+    "kubernetes.io/cluster/${var.cluster_name}" = "shared" # Tag 'shared' informuje EKS, że może używać tej podsieci.
+    "kubernetes.io/role/elb"                    = "1"      # Tag wymagany przez AWS Load Balancer Controller do tworzenia publicznych ELB.
   }
 }
 
-# Public Subnet 2
-resource "aws_subnet" "public_subnet_2" {
-  vpc_id                  = aws_vpc.eks_vpc.id
-  cidr_block              = "10.0.2.0/24"
-  availability_zone       = "${var.aws_region}b"
-  map_public_ip_on_launch = true
-  tags = {
-    "kubernetes.io/cluster/${var.cluster_name}" = "owned"
-    "kubernetes.io/role/elb"                      = "1"
-    Name                                        = "${var.cluster_name}-public-subnet-2"
-  }
-}
-
-# Private Subnet 1
-resource "aws_subnet" "private_subnet_1" {
+# Two Private Subnets for EKS Worker Nodes
+resource "aws_subnet" "private" {
+  count             = 2
   vpc_id            = aws_vpc.eks_vpc.id
-  cidr_block        = "10.0.11.0/24"
-  availability_zone = "${var.aws_region}a"
+  cidr_block        = "10.0.${10 + count.index + 1}.0/24" # np. 10.0.11.0/24 i 10.0.12.0/24
+  availability_zone = local.availability_zones[count.index]
   tags = {
-    "kubernetes.io/cluster/${var.cluster_name}" = "owned"
-    "kubernetes.io/role/internal-elb"             = "1"
-    Name                                        = "${var.cluster_name}-private-subnet-1"
+    Name                                        = "${var.cluster_name}-private-subnet-${count.index + 1}"
+    "kubernetes.io/cluster/${var.cluster_name}" = "shared"
+    "kubernetes.io/role/internal-elb"           = "1" # Tag dla prywatnych Load Balancerów.
   }
 }
 
-# Private Subnet 2
-resource "aws_subnet" "private_subnet_2" {
-  vpc_id            = aws_vpc.eks_vpc.id
-  cidr_block        = "10.0.12.0/24"
-  availability_zone = "${var.aws_region}b"
-  tags = {
-    "kubernetes.io/cluster/${var.cluster_name}" = "owned"
-    "kubernetes.io/role/internal-elb"             = "1"
-    Name                                        = "${var.cluster_name}-private-subnet-2"
-  }
-}
-
-# Internet Gateway
+# Internet Gateway for Public Subnets
 resource "aws_internet_gateway" "gw" {
   vpc_id = aws_vpc.eks_vpc.id
+  tags   = { Name = "${var.cluster_name}-igw" }
 }
 
-# NAT Gateway (Potrzebny do dostępu z prywatnych subnetów do internetu)
-resource "aws_nat_gateway" "nat" {
-  allocation_id = aws_eip.nat.id
-  subnet_id     = aws_subnet.public_subnet_1.id
-  depends_on    = [aws_internet_gateway.gw]
-}
-
-# EIP dla NAT Gateway
+# EIP for NAT Gateway
 resource "aws_eip" "nat" {
   domain = "vpc"
+  depends_on = [aws_internet_gateway.gw]
+}
+
+# NAT Gateway for worker nodes
+resource "aws_nat_gateway" "nat" {
+  allocation_id = aws_eip.nat.id
+  subnet_id     = aws_subnet.public[0].id
+  tags          = { Name = "${var.cluster_name}-nat-gw" }
 }
 
 # Public Route Table
@@ -82,6 +79,7 @@ resource "aws_route_table" "public" {
     cidr_block = "0.0.0.0/0"
     gateway_id = aws_internet_gateway.gw.id
   }
+  tags = { Name = "${var.cluster_name}-public-rt" }
 }
 
 # Private Route Table
@@ -91,29 +89,73 @@ resource "aws_route_table" "private" {
     cidr_block = "0.0.0.0/0"
     nat_gateway_id = aws_nat_gateway.nat.id
   }
+  tags = { Name = "${var.cluster_name}-private-rt" }
 }
 
 # Public Route Table Associations
-resource "aws_route_table_association" "public_1" {
-  subnet_id      = aws_subnet.public_subnet_1.id
-  route_table_id = aws_route_table.public.id
-}
-
-resource "aws_route_table_association" "public_2" {
-  subnet_id      = aws_subnet.public_subnet_2.id
+resource "aws_route_table_association" "public" {
+  count = 2
+  subnet_id      = aws_subnet.public[count.index].id
   route_table_id = aws_route_table.public.id
 }
 
 # Private Route Table Associations
-resource "aws_route_table_association" "private_1" {
-  subnet_id      = aws_subnet.private_subnet_1.id
+resource "aws_route_table_association" "private" {
+  count = 2
+  subnet_id      = aws_subnet.private[count.index].id
   route_table_id = aws_route_table.private.id
 }
 
-resource "aws_route_table_association" "private_2" {
-  subnet_id      = aws_subnet.private_subnet_2.id
-  route_table_id = aws_route_table.private.id
+#================================================================
+# SECURITY
+#================================================================
+
+# EC2 Security Group for Cluster Communication
+resource "aws_security_group" "eks_cluster_sg" {
+  name        = "${var.cluster_name}-cluster-sg"
+  description = "Main security group for EKS cluster communication"
+  vpc_id      = aws_vpc.eks_vpc.id
+
+  # Allow all traffic within the security group
+  ingress {
+    from_port = 0
+    to_port   = 0
+    protocol  = "-1"
+    self      = true
+  }
+
+  # Allow ingress HTTP and HTTPS traffic from anywhere
+  ingress {
+    description = "Allow HTTP"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  ingress {
+    description = "Allow HTTPS"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # allow all outbound traffic
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "${var.cluster_name}-cluster-sg"
+  }
 }
+
+#================================================================
+# IAM (Uprawnienia)
+#================================================================
 
 # IAM Role for EKS Cluster
 resource "aws_iam_role" "eks_master_role" {
@@ -132,11 +174,13 @@ resource "aws_iam_role" "eks_master_role" {
   })
 }
 
+# Standard Policy needed for EKS 
 resource "aws_iam_role_policy_attachment" "eks_cluster_policy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
   role       = aws_iam_role.eks_master_role.name
 }
 
+# Policy allowing EKS to manage VPC network resources.
 resource "aws_iam_role_policy_attachment" "eks_service_policy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSVPCResourceController"
   role       = aws_iam_role.eks_master_role.name
@@ -159,6 +203,7 @@ resource "aws_iam_role" "eks_worker_role" {
   })
 }
 
+# Policies for Worker Nodes
 resource "aws_iam_role_policy_attachment" "eks_worker_policy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
   role       = aws_iam_role.eks_worker_role.name
@@ -174,26 +219,20 @@ resource "aws_iam_role_policy_attachment" "ec2_container_registry_read_only" {
   role       = aws_iam_role.eks_worker_role.name
 }
 
-# EC2 Security Group for Cluster Communication
-resource "aws_security_group" "eks_cluster_sg" {
-  name        = "${var.cluster_name}-eks-cluster-sg"
-  description = "Security group for EKS cluster communication"
-  vpc_id      = aws_vpc.eks_vpc.id
-
-  ingress {
-    from_port       = 0
-    to_port         = 0
-    protocol        = "-1"
-    cidr_blocks     = ["10.0.0.0/16"]
-  }
-
-  egress {
-    from_port       = 0
-    to_port         = 0
-    protocol        = "-1"
-    cidr_blocks     = ["0.0.0.0/0"]
-  }
+resource "aws_iam_role_policy_attachment" "ebs_csi_policy" {
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
+  role       = aws_iam_role.eks_worker_role.name
 }
+
+# SSM Policy for Worker Nodes
+resource "aws_iam_role_policy_attachment" "ssm_policy" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+  role       = aws_iam_role.eks_worker_role.name
+}
+
+#================================================================
+# COMPUTE (EKS Cluster)
+#================================================================
 
 # EKS Cluster
 resource "aws_eks_cluster" "cluster" {
@@ -202,7 +241,39 @@ resource "aws_eks_cluster" "cluster" {
   role_arn = aws_iam_role.eks_master_role.arn
 
   vpc_config {
-    subnet_ids = [aws_subnet.private_subnet_1.id, aws_subnet.private_subnet_2.id]
+    subnet_ids = concat(aws_subnet.public[*].id, aws_subnet.private[*].id)
+    security_group_ids = [aws_security_group.eks_cluster_sg.id]
+    endpoint_public_access = true
+  }
+
+  depends_on = [
+    aws_iam_role_policy_attachment.eks_cluster_policy,
+    aws_iam_role_policy_attachment.eks_service_policy
+  ]
+}
+
+# Launch Template for EKS Worker Nodes
+resource "aws_launch_template" "eks_workers" {
+  name = "${var.cluster_name}-workers-lt"
+
+  # Define root volume configuration
+  block_device_mappings {
+    device_name = "/dev/xvda" # Standard path for root device in Amazon Linux 2 / Ubuntu.
+    ebs {
+      volume_size = 20
+      volume_type = "gp3"
+      delete_on_termination = true
+    }
+  }
+  
+  instance_type = var.worker_instance_type
+
+  # Tagging instances created from this template.
+  tag_specifications {
+    resource_type = "instance"
+    tags = {
+      Name = "${var.cluster_name}-eks-worker"
+    }
   }
 }
 
@@ -211,17 +282,78 @@ resource "aws_eks_node_group" "node_group" {
   cluster_name    = aws_eks_cluster.cluster.name
   node_group_name = "${var.cluster_name}-node-group"
   node_role_arn   = aws_iam_role.eks_worker_role.arn
-  subnet_ids      = [aws_subnet.private_subnet_1.id, aws_subnet.private_subnet_2.id]
-  instance_types  = [var.worker_instance_type]
-
-  remote_access {
-    ec2_ssh_key = var.ssh_key_name
-    source_security_group_ids = [aws_security_group.eks_cluster_sg.id]
+  subnet_ids      = aws_subnet.private[*].id
+  
+  launch_template {
+    id      = aws_launch_template.eks_workers.id
+    version = aws_launch_template.eks_workers.latest_version
   }
 
   scaling_config {
     desired_size = var.worker_count
-    max_size     = var.worker_count
+    max_size     = var.worker_count + 1
     min_size     = var.worker_count
   }
+
+  depends_on = [
+    aws_iam_role_policy_attachment.eks_worker_policy,
+    aws_iam_role_policy_attachment.eks_cni_policy,
+    aws_iam_role_policy_attachment.ec2_container_registry_read_only,
+    aws_iam_role_policy_attachment.ebs_csi_policy,
+    aws_iam_role_policy_attachment.ssm_policy
+  ]
+}
+
+# =================================================================
+# EKS ADD-ON: AWS EBS CSI Driver 
+# =================================================================
+
+data "tls_certificate" "eks" {
+  url = aws_eks_cluster.cluster.identity[0].oidc[0].issuer
+}
+# OIDC Provider for the EKS Cluster
+resource "aws_iam_openid_connect_provider" "eks" {
+  client_id_list  = ["sts.amazonaws.com"]
+  thumbprint_list = [data.tls_certificate.eks.certificates[0].sha1_fingerprint]
+  url             = aws_eks_cluster.cluster.identity[0].oidc[0].issuer
+}
+
+# Dedicated IAM Role for the EBS CSI Driver
+resource "aws_iam_role" "ebs_csi_driver_role" {
+  name = "${var.cluster_name}-ebs-csi-driver-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Federated = aws_iam_openid_connect_provider.eks.arn
+        }
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Condition = {
+          StringEquals = {
+            "${aws_iam_openid_connect_provider.eks.url}:sub" = "system:serviceaccount:kube-system:ebs-csi-controller-sa"
+          }
+        }
+      }
+    ]
+  })
+}
+    
+resource "aws_iam_role_policy_attachment" "ebs_csi_driver_policy_attachment" {
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
+  role       = aws_iam_role.ebs_csi_driver_role.name
+}
+
+resource "aws_eks_addon" "ebs_csi_driver" {
+  cluster_name = aws_eks_cluster.cluster.name
+  addon_name   = "aws-ebs-csi-driver"
+
+  service_account_role_arn = aws_iam_role.ebs_csi_driver_role.arn
+
+  depends_on = [
+    aws_iam_openid_connect_provider.eks,
+    aws_iam_role_policy_attachment.ebs_csi_driver_policy_attachment,
+  ]
 }
