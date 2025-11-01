@@ -1,0 +1,36 @@
+name: DAST Scan
+
+on:
+  workflow_call:
+
+jobs:
+  dast-scan:
+    name: OWASP ZAP DAST Scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: none
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t flask-app-dast -f ./src/Dockerfile ./src
+
+      - name: Run Docker container
+        run: docker run -d -p 5000:5000 --name flask-app-container flask-app-dast
+
+      - name: Wait for application to be ready
+        run: sleep 15
+
+      - name: Run OWASP ZAP Full Scan
+        uses: zaproxy/action-full-scan@v0.13.0
+        with:
+          target: 'http://localhost:5000'
+          fail_action: false
+          allow_issue_writing: false
+
+      - name: Stop and remove Docker container
+        if: always()
+        run: docker stop flask-app-container && docker rm flask-app-container

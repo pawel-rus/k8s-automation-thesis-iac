@@ -18,65 +18,11 @@ on:
 jobs:
   sast-scan:
     name: Application Code Scan (SAST)
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Install Semgrep
-        run: pip install semgrep
-      
-      - name: Run Semgrep scan for source code
-        run: semgrep scan --config auto --json --output semgrep-report.json src/
-        continue-on-error: true
-
-      - name: Convert JSON report to HTML for source code
-        run: |
-          sudo apt-get update && sudo apt-get install -y jq
-
-          echo "<html><head><meta charset='utf-8'><title>Semgrep Report</title></head><body><h1>Semgrep Results</h1><table border='1' cellspacing='0' cellpadding='5'><tr><th>Check ID</th><th>Path</th><th>Line</th><th>Message</th><th>Severity</th></tr>" > semgrep-report.html
-
-          jq -r '.results[] | "<tr><td>\(.check_id)</td><td>\(.path)</td><td>\(.start.line)</td><td>\(.extra.message)</td><td>\(.extra.severity)</td></tr>"' semgrep-report.json >> semgrep-report.html
-
-          echo "</table></body></html>" >> semgrep-report.html
-
-      - name: Upload HTML Semgrep report for source code
-        uses: actions/upload-artifact@v4
-        with:
-          name: semgrep-report
-          path: semgrep-report.html
-          retention-days: 1
+    uses: ./.github/workflows/sast-scan.yaml
 
   dast-scan:
     name:  OWASP ZAP DAST Scan
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      issues: none
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Build Docker image
-        run: docker build -t flask-app-dast -f ./src/Dockerfile ./src
-
-      - name: Run Docker container
-        run: docker run -d -p 5000:5000 --name flask-app-container flask-app-dast
-
-      - name: Wait for application to be ready
-        run: sleep 15
-
-      - name: Run OWASP ZAP Full Scan
-        uses: zaproxy/action-full-scan@v0.13.0
-        with:
-          target: 'http://localhost:5000'
-          fail_action: false
-          allow_issue_writing: false
-
-      - name: Stop and remove Docker container
-        if: always()
-        run: docker stop flask-app-container && docker rm flask-app-container
+    uses: ./.github/workflows/dast-scan.yaml
 
   build-and-push:
     name: Build & Publish Docker Image
@@ -100,6 +46,7 @@ jobs:
 
   deploy:
     name: Deploy to ${{ github.event.inputs.environment }}
+    needs: [helm-lint, helmfile-lint]
     runs-on: ubuntu-latest
     needs: build-and-push
     steps:

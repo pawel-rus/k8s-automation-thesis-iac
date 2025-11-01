@@ -1,0 +1,36 @@
+name: SAST Scan
+
+on:
+  workflow_call:
+
+jobs:
+  sast-scan:
+    name: Application Code Scan (SAST)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Semgrep
+        run: pip install semgrep
+      
+      - name: Run Semgrep scan for source code
+        run: semgrep scan --config auto --json --output semgrep-report.json src/
+        continue-on-error: true
+
+      - name: Convert JSON report to HTML for source code
+        run: |
+          sudo apt-get update && sudo apt-get install -y jq
+
+          echo "<html><head><meta charset='utf-8'><title>Semgrep Report</title></head><body><h1>Semgrep Results</h1><table border='1' cellspacing='0' cellpadding='5'><tr><th>Check ID</th><th>Path</th><th>Line</th><th>Message</th><th>Severity</th></tr>" > semgrep-report.html
+
+          jq -r '.results[] | "<tr><td>\(.check_id)</td><td>\(.path)</td><td>\(.start.line)</td><td>\(.extra.message)</td><td>\(.extra.severity)</td></tr>"' semgrep-report.json >> semgrep-report.html
+
+          echo "</table></body></html>" >> semgrep-report.html
+
+      - name: Upload HTML Semgrep report for source code
+        uses: actions/upload-artifact@v4
+        with:
+          name: semgrep-report
+          path: semgrep-report.html
+          retention-days: 1
