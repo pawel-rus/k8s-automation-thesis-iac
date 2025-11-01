@@ -17,11 +17,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Helmfile
-        run: |
-          wget https://github.com/helmfile/helmfile/releases/download/v0.158.1/helmfile_0.158.1_linux_amd64.tar.gz
-          tar -zxvf helmfile_0.158.1_linux_amd64.tar.gz
-          sudo mv helmfile /usr/local/bin/helmfile
+      - name: Setup Helmfile
+        uses: memezou-tech/setup-helmfile@v2.1.0
 
       - name: Run Helmfile Lint
-        run: helmfile lint ${{ inputs.helmfile_path }}
+        run: helmfile lint -f ${{ inputs.helmfile_path }}
