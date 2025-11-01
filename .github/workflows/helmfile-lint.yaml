@@ -1,0 +1,27 @@
+name: Helmfile Lint
+
+on:
+  workflow_call:
+    inputs:
+      helmfile_path:
+        description: 'The path to the Helmfile to lint'
+        required: false
+        type: string
+        default: 'helmfile/aws-selfhosted/helmfile.gotmpl'
+
+jobs:
+  lint-chart:
+    name: Lint Helmfile
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Helmfile
+        run: |
+          wget https://github.com/helmfile/helmfile/releases/download/v0.158.1/helmfile_0.158.1_linux_amd64.tar.gz
+          tar -zxvf helmfile_0.158.1_linux_amd64.tar.gz
+          sudo mv helmfile /usr/local/bin/helmfile
+
+      - name: Run Helmfile Lint
+        run: helmfile lint ${{ inputs.helmfile_path }}

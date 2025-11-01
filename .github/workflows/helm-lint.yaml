@@ -1,0 +1,26 @@
+name: Helm Chart Lint
+
+on:
+  workflow_call:
+    inputs:
+      chart_path:
+        description: 'The path to the Helm chart to lint'
+        required: false
+        type: string
+        default: 'charts/flask-app/'
+
+jobs:
+  lint-chart:
+    name: Lint Helm Chart
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'v3.13.2'
+
+      - name: Run Helm Lint
+        run: helm lint ${{ inputs.chart_path }}
