@@ -88,12 +88,12 @@ jobs:
   helm-lint:
     name: Helm Chart Lint
     needs: [build-and-push]
-    uses: ./.github/workflows/helm-lint.yml
+    uses: ./.github/workflows/helm-lint.yaml
 
   helmfile-lint:
     name: Helmfile Lint
     needs: [build-and-push]
-    uses: ./.github/workflows/helmfile-lint.yml
+    uses: ./.github/workflows/helmfile-lint.yaml
 
   deploy:
     name: Deploy to ${{ github.event.inputs.environment }}
