@@ -5,7 +5,6 @@ on:
 
 jobs:
   dast-scan:
-    name: OWASP ZAP DAST Scan
     runs-on: ubuntu-latest
     permissions:
       contents: read

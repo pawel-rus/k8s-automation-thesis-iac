@@ -17,12 +17,15 @@ on:
 
 jobs:
   sast-scan:
+    name: Application Code Scan (SAST)
     uses: ./.github/workflows/sast-scan.yaml
 
   dast-scan:
+    name: OWASP ZAP DAST Scan
     uses: ./.github/workflows/dast-scan.yaml
 
   build-and-push:
+    name: Build & Push Docker Image
     needs: [sast-scan, dast-scan]
     uses: ./.github/workflows/build-and-push.yaml
     with:
@@ -32,10 +35,12 @@ jobs:
       DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
     
   helm-lint:
+    name: Lint Helm Chart
     needs: [build-and-push]
     uses: ./.github/workflows/helm-lint.yaml
 
   helmfile-lint:
+    name: Lint Helmfile
     needs: [build-and-push]
     uses: ./.github/workflows/helmfile-lint.yaml
 

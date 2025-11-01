@@ -5,7 +5,6 @@ on:
 
 jobs:
   sast-scan:
-    name: Application Code Scan (SAST)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository

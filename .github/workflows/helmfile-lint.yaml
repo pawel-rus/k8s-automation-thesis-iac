@@ -11,14 +11,12 @@ on:
 
 jobs:
   lint-chart:
-    name: Lint Helmfile
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Helmfile
-        uses: memezou-tech/setup-helmfile@v2.1.0
-
       - name: Run Helmfile Lint
-        run: helmfile lint -f ${{ inputs.helmfile_path }}
+        uses: helmfile/helmfile-action@v2.0.5
+        with:
+          helmfile-args: -f ${{ inputs.helmfile_path }} lint

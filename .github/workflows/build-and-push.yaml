@@ -23,7 +23,6 @@ on:
 
 jobs:
   build-and-push:
-    name: Build & Push Docker Image
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
