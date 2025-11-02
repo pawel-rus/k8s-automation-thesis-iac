@@ -1,0 +1,54 @@
+name: Deploy All Releases
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target deployment environment'
+        required: true
+        type: choice
+        options:
+        - aws-selfhosted
+        - eks-managed
+      provider:
+        description: 'The configuration directory/provider to use (e.g., "aws")'
+        required: true
+        type: choice
+        options:
+        - aws
+        - azure
+        default: 'aws'
+
+jobs:
+  deploy-all-services:
+    name: Deploy all services to ${{ github.event.inputs.environment }}
+    environment:
+      name: ${{ github.event.inputs.environment }}
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (for EKS only)
+        if: github.event.inputs.environment == 'eks-managed'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-central-1
+
+      - name: Set up Kubeconfig from Secret
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBECONFIG_DATA }}" > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+
+      - name: Deploy all releases with Helmfile
+        uses: helmfile/helmfile-action@v2.0.5
+        with:
+          helmfile-args: >-
+            -e ${{ github.event.inputs.environment }}
+            --file helmfile/${{ github.event.inputs.provider }}/helmfile.yaml.gotmpl
+            apply
+            --interactive=false

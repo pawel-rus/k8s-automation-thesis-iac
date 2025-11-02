@@ -3,12 +3,16 @@ name: Helmfile Lint
 on:
   workflow_call:
     inputs:
-      helmfile_path:
-        description: 'The path to the Helmfile to lint'
+      workdir:
+        description: 'Working directory for helmfile'
         required: false
         type: string
-        default: 'helmfile/aws-selfhosted/helmfile.gotmpl'
-
+        default: 'helmfile/aws/'
+      environment:
+        description: 'The environment to lint the Helmfile against'
+        required: true
+        type: string
+        
 jobs:
   lint-chart:
     runs-on: ubuntu-latest
@@ -19,4 +23,4 @@ jobs:
       - name: Run Helmfile Lint
         uses: helmfile/helmfile-action@v2.0.5
         with:
-          helmfile-args: -f ${{ inputs.helmfile_path }} lint
+          helmfile-args: -e ${{ inputs.environment }} -f ${{ inputs.workdir }}/helmfile.yaml.gotmpl lint

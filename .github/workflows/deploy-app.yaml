@@ -1,0 +1,58 @@
+name: Reusable - Deploy Application
+
+on:
+  workflow_call:
+    inputs:
+      provider:
+        description: 'Cloud provider'
+        required: true
+        type: string
+      environment:
+        description: 'Target deployment environment'
+        required: true
+        type: string
+      tag:
+        description: 'Docker image tag to deploy'
+        required: true
+        type: string
+    secrets:
+      KUBECONFIG_DATA:
+        required: true
+      AWS_ACCESS_KEY_ID:
+        required: false
+      AWS_SECRET_ACCESS_KEY:
+        required: false
+
+jobs:
+  deploy-application:
+    name: Deploy flask-app to ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (for EKS only)
+        if: inputs.environment == 'eks-managed'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-central-1
+
+      - name: Set up Kubeconfig from Secret
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBECONFIG_DATA }}" > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+
+      - name: Deploy flask-app release with Helmfile
+        uses: helmfile/helmfile-action@v2.0.5
+        with:
+          helmfile-args: >-
+            -e ${{ inputs.environment }}
+            -f helmfile/${{ inputs.provider }}/helmfile.yaml.gotmpl
+            apply
+            --selector name=flask-app
+            --set flask-app.image.tag=${{ inputs.tag }}
+            --interactive=false

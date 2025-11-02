@@ -14,6 +14,13 @@ on:
         options:
         - aws-selfhosted
         - eks-managed
+      provider:
+        description: 'Cloud provider'
+        required: true
+        type: choice
+        options:
+        - aws
+        - azure
 
 jobs:
   sast-scan:
@@ -43,11 +50,19 @@ jobs:
     name: Lint Helmfile
     needs: [build-and-push]
     uses: ./.github/workflows/helmfile-lint.yaml
+    with:
+      environment: ${{ github.event.inputs.environment }}
+      workdir: helmfile/${{ github.event.inputs.provider }}
 
   deploy:
     name: Deploy to ${{ github.event.inputs.environment }}
     needs: [helm-lint, helmfile-lint]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Deploy to aws-selfhosted
-        run: echo "Deploying version ${{ github.event.inputs.tag }} to ${{ github.event.inputs.environment }} environment"
+    environment:
+      name: ${{ github.event.inputs.environment }}
+    uses: ./.github/workflows/deploy-app.yaml
+    with:
+      environment: ${{ github.event.inputs.environment }}
+      provider: ${{ github.event.inputs.provider }}
+      tag: ${{ github.event.inputs.tag }}
+    secrets:
+      inherit

@@ -21,3 +21,4 @@ while read vol; do
 done
 
 aws elbv2 describe-load-balancers --query "LoadBalancers[?contains(DNSName, 'ingress')].[LoadBalancerName,DNSName,State]"
+aws elbv2 describe-load-balancers --region eu-central-1
