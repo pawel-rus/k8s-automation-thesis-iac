@@ -68,4 +68,6 @@ jobs:
           provider: ${{ github.event.inputs.provider }}
           tag: ${{ github.event.inputs.tag }}
         secrets:
-          inherit
+          KUBECONFIG_DATA: ${{ secrets.KUBECONFIG_DATA }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
