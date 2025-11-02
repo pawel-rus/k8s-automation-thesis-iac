@@ -69,6 +69,8 @@ releases:
             path: /
             pathType: Prefix
 
+          adminPassword: {{ env "GRAFANA_ADMIN_PASSWORD" | default "prom-operator2" | quote }}
+
   - name: loki-stack
     namespace: monitoring
     chart: grafana/loki-stack

@@ -19,7 +19,6 @@ prometheus:
 grafana:
   enabled: true
   replicas: 1
-  adminPassword: "prom-operator" # to be changed in CICD secrets
 
   # Configuration of additional data sources (Loki).
   additionalDataSources:
