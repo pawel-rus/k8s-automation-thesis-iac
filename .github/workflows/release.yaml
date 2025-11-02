@@ -61,13 +61,30 @@ jobs:
       name: ${{ github.event.inputs.environment }}
     runs-on: ubuntu-latest
     steps:
-      - name: Call App Deploy Workflow
-        uses: ./.github/workflows/deploy-app.yaml
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (for EKS only)
+        if: inputs.environment == 'eks-managed'
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          environment: ${{ github.event.inputs.environment }}
-          provider: ${{ github.event.inputs.provider }}
-          tag: ${{ github.event.inputs.tag }}
-        secrets:
-          KUBECONFIG_DATA: ${{ secrets.KUBECONFIG_DATA }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-central-1
+
+      - name: Set up Kubeconfig from Secret
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBECONFIG_DATA }}" > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+
+      - name: Deploy flask-app release with Helmfile
+        uses: helmfile/helmfile-action@v2.0.5
+        with:
+          helmfile-args: >-
+            -e ${{ github.event.inputs.environment }}
+            -f helmfile/${{ github.event.inputs.provider }}/helmfile.yaml.gotmpl
+            apply
+            --selector name=flask-app
+            --set flask-app.image.tag=${{ github.event.inputs.tag }}
+            --interactive=false
