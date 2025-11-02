@@ -1,4 +1,4 @@
-name: Reusable - Deploy Application
+name: Deploy Application
 
 on:
   workflow_call:

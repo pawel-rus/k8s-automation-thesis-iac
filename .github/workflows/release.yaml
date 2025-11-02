@@ -59,10 +59,13 @@ jobs:
     needs: [helm-lint, helmfile-lint]
     environment:
       name: ${{ github.event.inputs.environment }}
-    uses: ./.github/workflows/deploy-app.yaml
-    with:
-      environment: ${{ github.event.inputs.environment }}
-      provider: ${{ github.event.inputs.provider }}
-      tag: ${{ github.event.inputs.tag }}
-    secrets:
-      inherit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call App Deploy Workflow
+        uses: ./.github/workflows/deploy-app.yaml
+        with:
+          environment: ${{ github.event.inputs.environment }}
+          provider: ${{ github.event.inputs.provider }}
+          tag: ${{ github.event.inputs.tag }}
+        secrets:
+          inherit
