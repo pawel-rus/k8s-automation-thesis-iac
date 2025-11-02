@@ -1,0 +1,16 @@
+replicaCount: 1
+image:
+  tag: 'v1.2.1'
+
+service:
+  type: ClusterIP
+  port: 80
+
+resources:
+  limits:
+    cpu: 200m
+    memory: 256Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+

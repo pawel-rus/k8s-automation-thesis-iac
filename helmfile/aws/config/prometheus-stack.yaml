@@ -21,15 +21,6 @@ grafana:
   replicas: 1
   adminPassword: "prom-operator" # to be changed in CICD secrets
 
-  # Ingress for Grafana
-  ingress:
-    enabled: true
-    ingressClassName: nginx
-    hosts:
-      - grafana.aws-selfhosted
-    path: /
-    pathType: Prefix
-
   # Configuration of additional data sources (Loki).
   additionalDataSources:
     - name: Loki
