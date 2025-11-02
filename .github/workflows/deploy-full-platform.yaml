@@ -44,6 +44,19 @@ jobs:
           echo "${{ secrets.KUBECONFIG_DATA }}" > $HOME/.kube/config
           chmod 600 $HOME/.kube/config
 
+      - name: Setup Helm
+        if: github.event.inputs.environment == 'eks-managed'
+        uses: azure/setup-helm@v4
+        with:
+          version: 'v3.13.2'
+
+      - name: Install Prometheus Operator CRDs
+        if: github.event.inputs.environment == 'eks-managed'
+        run: |
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+          helm repo update
+          helm install prometheus-operator-crds prometheus-community/prometheus-operator-crds --version 15.0.0 --namespace monitoring --create-namespace
+
       - name: Deploy all releases with Helmfile
         uses: helmfile/helmfile-action@v2.0.5
         env:
