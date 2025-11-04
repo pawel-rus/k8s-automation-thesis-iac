@@ -49,7 +49,7 @@ resource "aws_subnet" "private" {
   tags = {
     Name                                        = "${var.cluster_name}-private-subnet-${count.index + 1}"
     "kubernetes.io/cluster/${var.cluster_name}" = "shared"
-    "kubernetes.io/role/internal-elb"           = "1" # Tag dla prywatnych Load Balancerów.
+    "kubernetes.io/role/internal-elb"           = "1"
   }
 }
 
@@ -356,4 +356,159 @@ resource "aws_eks_addon" "ebs_csi_driver" {
     aws_iam_openid_connect_provider.eks,
     aws_iam_role_policy_attachment.ebs_csi_driver_policy_attachment,
   ]
+}
+
+
+#================================================================
+# =================================================================
+# EKS ADD-ON: Amazon CloudWatch Observability
+# =================================================================
+
+# Create the dedicated namespace required by the CloudWatch Observability add-on.
+# Although the add-on can create this, defining it explicitly provides better control.
+resource "kubernetes_namespace" "amazon_cloudwatch" {
+  metadata {
+    name = "amazon-cloudwatch"
+  }
+}
+
+# IAM Role for the CloudWatch Observability Add-on (using IRSA).
+resource "aws_iam_role" "cloudwatch_observability_role" {
+  # We use a descriptive name for the role.
+  name = "${var.cluster_name}-cw-observability-role"
+
+  # The trust policy allows the Service Accounts created by the add-on
+  # (within the 'amazon-cloudwatch' namespace) to assume this IAM role.
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Federated = aws_iam_openid_connect_provider.eks.arn
+        }
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Condition = {
+          StringLike = {
+            # This condition restricts role assumption to Service Accounts in the specified namespace.
+            "${aws_iam_openid_connect_provider.eks.url}:sub" = "system:serviceaccount:amazon-cloudwatch:*"
+          }
+        }
+      }
+    ]
+  })
+}
+
+# Attach the required AWS-managed policy to the role.
+# This policy grants the necessary permissions to send logs and metrics to CloudWatch.
+resource "aws_iam_role_policy_attachment" "cloudwatch_observability_policy_attachment" {
+  policy_arn = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
+  role       = aws_iam_role.cloudwatch_observability_role.name
+}
+
+# Install and manage the Amazon CloudWatch Observability add-on for the EKS cluster.
+resource "aws_eks_addon" "cloudwatch_observability" {
+  cluster_name             = aws_eks_cluster.cluster.name
+  # This is the official name for the add-on, supported on EKS 1.31.
+  addon_name               = "amazon-cloudwatch-observability"
+  
+  addon_version            = "v4.6.0-eksbuild.1"
+
+  # Associate the IAM role with the add-on's service account.
+  service_account_role_arn = aws_iam_role.cloudwatch_observability_role.arn
+
+  # Ensure that the add-on is created only after its dependencies are ready.
+  depends_on = [
+    aws_iam_openid_connect_provider.eks,
+    aws_iam_role_policy_attachment.cloudwatch_observability_policy_attachment,
+    kubernetes_namespace.amazon_cloudwatch,
+  ]
+}
+
+# =================================================================
+# CloudWatch Agent Configuration for Prometheus Scraping
+# =================================================================
+
+# This ConfigMap provides the scraping configuration for the CloudWatch Agent's
+# Prometheus collector. It instructs the agent to discover and scrape Prometheus metrics.
+resource "kubernetes_config_map" "cw_agent_prometheus_config" {
+  metadata {
+    # CORRECTED NAME: This is the specific name the agent looks for to configure Prometheus scraping.
+    name      = "cwagent-prometheus-config"
+    namespace = "amazon-cloudwatch"
+  }
+
+  data = {
+    # This key ('prometheus.yaml') is also expected by the agent.
+    # The content defines the Prometheus scraping jobs.
+    "prometheus.yaml" = yamlencode({
+      global = {
+        scrape_interval = "15s"
+        scrape_timeout  = "10s"
+      }
+      scrape_configs = [
+        {
+          job_name = "kubernetes-pods-prometheus"
+          kubernetes_sd_configs = [{ role = "pod" }]
+          # This relabeling configuration is key. It dynamically discovers pods
+          # that are annotated for Prometheus scraping.
+          relabel_configs = [
+            # 1. Keep only pods that have the 'prometheus.io/scrape: "true"' annotation.
+            {
+              source_labels = ["__meta_kubernetes_pod_annotation_prometheus_io_scrape"]
+              action        = "keep"
+              regex         = "true"
+            },
+            # 2. Use the path from the 'prometheus.io/path' annotation (defaults to /metrics).
+            {
+              source_labels = ["__meta_kubernetes_pod_annotation_prometheus_io_path"]
+              action        = "replace"
+              target_label  = "__metrics_path__"
+              regex         = "(.+)"
+            },
+            # 3. Construct the target address using the pod's IP and the port from 'prometheus.io/port'.
+            {
+              source_labels = ["__meta_kubernetes_pod_annotation_prometheus_io_port", "__meta_kubernetes_pod_ip"]
+              action        = "replace"
+              regex         = "([^:]+);(.+)"
+              replacement   = "$2:$1"
+              target_label  = "__address__"
+            },
+            # 4. Copy pod labels to the scraped metrics.
+            {
+              action = "labelmap"
+              regex  = "__meta_kubernetes_pod_label_(.+)"
+            },
+            # 5. Add 'kubernetes_namespace' and 'kubernetes_pod_name' as labels.
+            {
+              source_labels = ["__meta_kubernetes_namespace"]
+              action        = "replace"
+              target_label  = "kubernetes_namespace"
+            },
+            {
+              source_labels = ["__meta_kubernetes_pod_name"]
+              action        = "replace"
+              target_label  = "kubernetes_pod_name"
+            }
+          ]
+        }
+      ]
+    })
+  }
+
+  # Ensure this ConfigMap is created only after the namespace and the add-on itself exist.
+  depends_on = [
+    kubernetes_namespace.amazon_cloudwatch,
+    aws_eks_addon.cloudwatch_observability
+  ]
+}
+
+data "aws_eks_cluster_auth" "cluster" {
+  name = aws_eks_cluster.cluster.name
+}
+
+provider "kubernetes" {
+  host                   = aws_eks_cluster.cluster.endpoint
+  cluster_ca_certificate = base64decode(aws_eks_cluster.cluster.certificate_authority[0].data)
+  token                  = data.aws_eks_cluster_auth.cluster.token
 }
