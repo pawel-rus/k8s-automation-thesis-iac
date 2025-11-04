@@ -1011,7 +1011,7 @@
           },
           "direction": "backward",
           "editorMode": "code",
-          "expr": "{namespace=\"aws-selfhosted\", app=\"flask-app\"} | logfmt | path=~\"$path\"",
+          "expr": "{namespace=\"application\", app=\"flask-app\"} | logfmt | path=~\"$path\"",
           "queryType": "range",
           "refId": "A"
         }
