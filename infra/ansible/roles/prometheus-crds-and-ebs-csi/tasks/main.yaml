@@ -15,6 +15,14 @@
   delegate_to: localhost
   run_once: true
 
+- name: Add Metrics Server Helm repository
+  community.kubernetes.helm_repository:
+    name: metrics-server
+    repo_url: "https://kubernetes-sigs.github.io/metrics-server/"
+    kubeconfig: "{{ playbook_dir }}/../.kubeconfigs/{{ project_env }}-kubeconfig"
+  delegate_to: localhost
+  run_once: true
+
 - name: Update Helm repositories
   ansible.builtin.command: helm repo update
   delegate_to: localhost
@@ -41,6 +49,20 @@
     chart_version: 2.49.0
     namespace: kube-system
     create_namespace: false
+    state: present
+    kubeconfig: "{{ playbook_dir }}/../.kubeconfigs/{{ project_env }}-kubeconfig"
+  delegate_to: localhost
+  run_once: true
+
+- name: Install Metrics Server 
+  community.kubernetes.helm:
+    name: metrics-server
+    chart_ref: metrics-server/metrics-server
+    namespace: kube-system
+    create_namespace: false
+    values:
+      args:
+        - --kubelet-insecure-tls
     state: present
     kubeconfig: "{{ playbook_dir }}/../.kubeconfigs/{{ project_env }}-kubeconfig"
   delegate_to: localhost
