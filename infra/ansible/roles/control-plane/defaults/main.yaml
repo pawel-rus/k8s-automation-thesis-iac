@@ -1,5 +1,5 @@
 ---
 calico_version: "3.27.0"
-k8s_version: "v1.31.0"
+k8s_version: "v1.32.0"
 pod_network_cidr: "192.168.0.0/16"
 cloud_provider: aws
