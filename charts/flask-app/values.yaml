@@ -30,3 +30,9 @@ ingress:
         - path: /
           pathType: Prefix
   tls: []
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 50
