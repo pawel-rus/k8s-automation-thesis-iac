@@ -61,6 +61,8 @@ releases:
             default:
               flask-app-overview:
                 json: {{ readFile "dashboards/flask-app-dashboard.json" | quote }}
+              hpa-scalability-overview:
+                json: {{ readFile "dashboards/hpa-scalability-overview.json" | quote }}
           ingress:
             enabled: true
             ingressClassName: nginx
