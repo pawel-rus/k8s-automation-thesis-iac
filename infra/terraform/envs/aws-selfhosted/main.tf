@@ -324,7 +324,7 @@ resource "aws_instance" "master" {
   iam_instance_profile   = aws_iam_instance_profile.k8s_node_profile.name
   
   root_block_device {
-    volume_size = 15
+    volume_size = 20
     volume_type = "gp3"
   }
   
@@ -346,7 +346,7 @@ resource "aws_instance" "workers" {
   iam_instance_profile   = aws_iam_instance_profile.k8s_node_profile.name
   
   root_block_device {
-    volume_size = 15
+    volume_size = 20
     volume_type = "gp3"
   }
 

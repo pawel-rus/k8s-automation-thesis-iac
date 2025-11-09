@@ -71,3 +71,7 @@ Thumbs.db
 venv/
 /src/app/__pycache__
 *.pyc
+
+/tests
+ec2-types
+kube-bench*
