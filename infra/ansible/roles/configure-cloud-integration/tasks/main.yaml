@@ -36,6 +36,24 @@
   delegate_to: localhost
   run_once: true
 
+- name: Label worker nodes with 'node-role.kubernetes.io/worker'
+  kubernetes.core.k8s:
+    api_version: v1
+    kind: Node
+    name: "ip-{{ item.private_ip_address | replace('.', '-') }}"
+    state: patched
+    definition:
+      metadata:
+        labels:
+          node-role.kubernetes.io/worker: ""
+    kubeconfig: "{{ playbook_dir }}/../.kubeconfigs/{{ project_env }}-kubeconfig"
+  loop: "{{ ec2_facts.instances }}"
+  when: item.instance_id in tf_outputs.worker_instance_ids.value
+  loop_control:
+    label: "ip-{{ item.private_ip_address | replace('.', '-') }}"
+  delegate_to: localhost
+  run_once: true
+
 - name: Print completion message
   ansible.builtin.debug:
     msg: "All nodes patched successfully for environment '{{ project_env }}'."
