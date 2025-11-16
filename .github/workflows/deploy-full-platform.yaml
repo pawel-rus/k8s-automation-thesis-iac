@@ -60,6 +60,7 @@ jobs:
       - name: Deploy all releases with Helmfile
         uses: helmfile/helmfile-action@v2.0.5
         env:
+          HELM_PLUGINS_SETUP_FLAGS: "--verify=false"
           GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
         with:
           helmfile-args: >-
