@@ -45,11 +45,14 @@ jobs:
           chmod 600 $HOME/.kube/config
 
       - name: Setup Helm
-        if: github.event.inputs.environment == 'eks-managed'
         uses: azure/setup-helm@v4
         with:
           version: 'v3.13.2'
-
+      
+      - name: Install helm-diff plugin
+        run: |
+          helm plugin install https://github.com/databus23/helm-diff --verify=false
+      
       - name: Install Prometheus Operator CRDs
         if: github.event.inputs.environment == 'eks-managed'
         run: |
@@ -63,6 +66,7 @@ jobs:
           HELM_PLUGINS_SETUP_FLAGS: "--verify=false"
           GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
         with:
+          helm-version: skip
           helmfile-args: >-
             -e ${{ github.event.inputs.environment }}
             --file helmfile/${{ github.event.inputs.provider }}/helmfile.yaml.gotmpl
