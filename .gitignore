@@ -75,3 +75,4 @@ venv/
 /tests
 ec2-types
 kube-bench*
+policies.json
