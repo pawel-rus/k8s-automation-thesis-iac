@@ -51,7 +51,7 @@ jobs:
       
       - name: Install helm-diff plugin
         run: |
-          helm plugin install https://github.com/databus23/helm-diff
+          helm plugin install https://github.com/databus23/helm-diff --version v3.8.1
       
       - name: Install Prometheus Operator CRDs
         if: github.event.inputs.environment == 'eks-managed'
