@@ -60,8 +60,15 @@ jobs:
           helm repo update
           helm upgrade --install prometheus-operator-crds prometheus-community/prometheus-operator-crds --version 15.0.0 --namespace monitoring --create-namespace
 
+      - name: Setup Helmfile
+        run: |
+          curl -L https://github.com/helmfile/helmfile/releases/download/v1.1.9/helmfile_1.1.9_linux_amd64.tar.gz -o /tmp/helmfile.tar.gz
+          tar -xzf /tmp/helmfile.tar.gz -C /usr/local/bin helmfile
+          chmod +x /usr/local/bin/helmfile
+          helmfile version
+
       - name: Deploy all releases with Helmfile
         env:
           GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
         run: |
-             helmfile -e ${{ github.event.inputs.environment }} --file helmfile/${{ github.event.inputs.provider }}/helmfile.yaml.gotmpl apply --interactive=false
+          helmfile -e ${{ github.event.inputs.environment }} --file helmfile/${{ github.event.inputs.provider }}/helmfile.yaml.gotmpl apply --interactive=false
