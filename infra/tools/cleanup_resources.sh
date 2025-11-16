@@ -22,3 +22,5 @@ done
 
 aws elbv2 describe-load-balancers --query "LoadBalancers[?contains(DNSName, 'ingress')].[LoadBalancerName,DNSName,State]"
 aws elbv2 describe-load-balancers --region eu-central-1
+
+aws ec2 describe-volumes --region eu-central-1   --query "Volumes[*].{ID:VolumeId,State:State,Size:Size,AZ:AvailabilityZone,Tags:Tags}"   --output table > storages.txt
