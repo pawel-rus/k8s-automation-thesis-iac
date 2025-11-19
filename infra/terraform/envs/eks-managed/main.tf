@@ -258,7 +258,7 @@ resource "aws_launch_template" "eks_workers" {
 
   # Define root volume configuration
   block_device_mappings {
-    device_name = "/dev/xvda" # Standard path for root device in Amazon Linux 2 / Ubuntu.
+    device_name = "/dev/xvda"
     ebs {
       volume_size = 20
       volume_type = "gp3"
@@ -267,6 +267,22 @@ resource "aws_launch_template" "eks_workers" {
   }
   
   instance_type = var.worker_instance_type
+
+  user_data = base64encode(<<EOF
+Content-Type: multipart/mixed; boundary="==BOUNDARY=="
+MIME-Version: 1.0
+
+--==BOUNDARY==
+Content-Type: text/x-shellscript
+MIME-Version: 1.0
+
+#!/bin/bash
+/etc/eks/bootstrap.sh ${var.cluster_name} \
+  --kubelet-extra-args "--max-pods=60"
+
+--==BOUNDARY==--
+EOF
+  )
 
   # Tagging instances created from this template.
   tag_specifications {
