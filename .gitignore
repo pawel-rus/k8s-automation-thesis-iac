@@ -72,7 +72,7 @@ venv/
 /src/app/__pycache__
 *.pyc
 
-/tests
+/tests/kube-burner/
 ec2-types
 kube-bench*
 policies.json
