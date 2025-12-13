@@ -1,5 +1,3 @@
-
-
 # Configuration of the Azure provider
 provider "azurerm" {
   features {}
@@ -78,30 +76,33 @@ resource "azurerm_network_security_group" "cluster_nsg" {
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
 
+  # Load Balancer HEALTH PROBES
   security_rule {
-    name                       = "allow-http"
+    name                       = "allow-azure-lb-health"
     priority                   = 100
     direction                  = "Inbound"
     access                     = "Allow"
-    protocol                   = "Tcp"
+    protocol                   = "*"
     source_port_range          = "*"
-    destination_port_range     = "80"
-    source_address_prefix      = "*"
+    destination_port_range     = "*"
+    source_address_prefix      = "AzureLoadBalancer"
     destination_address_prefix = "*"
   }
 
+  # allow traffic to application endpoints
   security_rule {
-    name                       = "allow-https"
+    name                       = "allow-internet-to-nodeports"
     priority                   = 110
     direction                  = "Inbound"
     access                     = "Allow"
     protocol                   = "Tcp"
     source_port_range          = "*"
-    destination_port_range     = "443"
+    destination_port_ranges    = ["80", "443", "30000-32767"]
     source_address_prefix      = "*"
     destination_address_prefix = "*"
   }
 
+  # Internal traffic
   security_rule {
     name                       = "allow-intra-vnet"
     priority                   = 120
@@ -114,15 +115,33 @@ resource "azurerm_network_security_group" "cluster_nsg" {
     destination_address_prefix = var.vnet_cidr
   }
 
+  # Outbound traffic
+  security_rule {
+    name                       = "allow-all-outbound"
+    priority                   = 100
+    direction                  = "Outbound"
+    access                     = "Allow"
+    protocol                   = "*"
+    source_port_range          = "*"
+    destination_port_range     = "*"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+
   tags = { project = var.cluster_name }
 }
-
 # -----------------------------
-# Association of NSG with private subnets
+# Association of NSG with subnets
 # -----------------------------
 resource "azurerm_subnet_network_security_group_association" "private_nsg_assoc" {
   count                     = length(azurerm_subnet.private)
   subnet_id                 = azurerm_subnet.private[count.index].id
+  network_security_group_id = azurerm_network_security_group.cluster_nsg.id
+}
+
+resource "azurerm_subnet_network_security_group_association" "public_nsg_assoc" {
+  count                     = length(azurerm_subnet.public)
+  subnet_id                 = azurerm_subnet.public[count.index].id
   network_security_group_id = azurerm_network_security_group.cluster_nsg.id
 }
 
