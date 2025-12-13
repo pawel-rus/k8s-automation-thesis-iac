@@ -15,6 +15,15 @@ releases:
     createNamespace: true
     chart: ingress-nginx/ingress-nginx
     version: 4.12.7
+    values:
+      - controller:
+          service:
+            externalTrafficPolicy: Cluster
+            ports:
+              http: 80
+              https: 443
+            annotations:
+              service.beta.kubernetes.io/azure-load-balancer-health-probe-request-path: /healthz
 
   - name: flask-app
     namespace: {{ .Environment.Values.appNamespace }} 
