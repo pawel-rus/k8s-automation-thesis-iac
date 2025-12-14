@@ -10,6 +10,7 @@ on:
         options:
         - aws-selfhosted
         - eks-managed
+        - aks-managed
       provider:
         description: 'The configuration directory/provider to use (e.g., "aws")'
         required: true
