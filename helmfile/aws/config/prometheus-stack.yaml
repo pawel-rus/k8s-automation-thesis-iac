@@ -1,7 +1,7 @@
 alertmanager:
   enabled: false
 
-# Configuration of Prometheus
+# Prometheus Configuration
 prometheus:
   prometheusSpec:
     replicas: 1
@@ -15,7 +15,7 @@ prometheus:
             requests:
               storage: 1Gi
 
-# --- Grafana Configuration ---
+# Grafana Configuration
 grafana:
   enabled: true
   replicas: 1
@@ -45,7 +45,7 @@ grafana:
   # Definition of dashboards to be loaded.
   dashboards:
     default:
-      # Name of the key in ConfigMap. Must be unique.
+      # Name of the key in ConfigMap.
       flask-app-overview:
         # Pointing to the JSON file with the dashboard definition.
         json: ""

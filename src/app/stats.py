@@ -6,9 +6,7 @@ _lock = threading.Lock()
 
 class StatsCollector:
     def __init__(self):
-        # Przechowujemy dane: {endpoint: {method: count}}
         self.data = defaultdict(lambda: defaultdict(int))
-        # Możemy też przechowywać szczegóły logów (opcjonalnie)
         self.logs = []
 
     def log_request(self, endpoint, method, status_code):

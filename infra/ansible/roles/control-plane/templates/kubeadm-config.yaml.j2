@@ -23,7 +23,7 @@ nodeRegistration:
   criSocket: "unix:///var/run/containerd/containerd.sock"
   kubeletExtraArgs:
     cloud-provider: "external"
-    cgroup-driver: "systemd" # Dodajemy cgroup-driver tutaj
+    cgroup-driver: "systemd"
 ---
 apiVersion: kubelet.config.k8s.io/v1beta1
 kind: KubeletConfiguration

@@ -8,7 +8,8 @@ werkzeug_logger.setLevel(logging.ERROR)
 
 class CustomFormatter(logging.Formatter):
     """
-    Custom logging formatter to include request details."""
+    Custom logging formatter to include request details.
+    """
     def format(self, record):
         record.ip = getattr(record, 'ip', '-')
         record.method = getattr(record, 'method', '-')
@@ -42,7 +43,6 @@ main_bp = Blueprint('main', __name__)
 def before_request_handler():
     request.start_time = time.time()
     ACTIVE_REQUESTS.labels(request.method, request.path).inc()
-    # Usunąłem print(), ponieważ teraz mamy czyste logi
     logger.debug("--> Request started", extra={'ip': request.remote_addr, 'method': request.method, 'path': request.path, 'status_code': '-'})
 
 
