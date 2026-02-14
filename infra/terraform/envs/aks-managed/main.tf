@@ -1,7 +1,7 @@
 # Configuration of the Azure provider
 provider "azurerm" {
   features {}
-  subscription_id = "XXXX"
+  subscription_id = var.subscription_id
 }
 
 provider "kubernetes" {
@@ -157,12 +157,14 @@ resource "azurerm_kubernetes_cluster" "aks" {
 
   default_node_pool {
     name            = "agentpool"
+    temporary_name_for_rotation = "temppool"
     node_count      = var.node_count
     vm_size         = var.node_vm_size
     vnet_subnet_id  = azurerm_subnet.private[0].id # Nodes in the private subnet
     max_pods        = 110
     type            = "VirtualMachineScaleSets"
     os_disk_size_gb = 30
+    orchestrator_version = var.k8s_version
   }
 
   linux_profile { # Added profile with SSH key

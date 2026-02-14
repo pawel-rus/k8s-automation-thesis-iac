@@ -305,6 +305,8 @@ resource "aws_eks_node_group" "node_group" {
     version = aws_launch_template.eks_workers.latest_version
   }
 
+  version = var.k8s_version
+  
   scaling_config {
     desired_size = var.worker_count
     max_size     = var.worker_count + 1
