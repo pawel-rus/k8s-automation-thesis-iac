@@ -154,7 +154,7 @@ resource "aws_security_group" "eks_cluster_sg" {
 }
 
 #================================================================
-# IAM (Uprawnienia)
+# IAM Roles
 #================================================================
 
 # IAM Role for EKS Cluster
@@ -377,7 +377,6 @@ resource "aws_eks_addon" "ebs_csi_driver" {
 }
 
 
-#================================================================
 # =================================================================
 # EKS ADD-ON: Amazon CloudWatch Observability
 # =================================================================
@@ -435,7 +434,6 @@ resource "aws_eks_addon" "cloudwatch_observability" {
   # Associate the IAM role with the add-on's service account.
   service_account_role_arn = aws_iam_role.cloudwatch_observability_role.arn
 
-  # Ensure that the add-on is created only after its dependencies are ready.
   depends_on = [
     aws_iam_openid_connect_provider.eks,
     aws_iam_role_policy_attachment.cloudwatch_observability_policy_attachment,
@@ -448,7 +446,6 @@ resource "aws_eks_addon" "cloudwatch_observability" {
 # =================================================================
 
 # This ConfigMap provides the scraping configuration for the CloudWatch Agent's
-# Prometheus collector. It instructs the agent to discover and scrape Prometheus metrics.
 resource "kubernetes_config_map" "cw_agent_prometheus_config" {
   metadata {
     # CORRECTED NAME: This is the specific name the agent looks for to configure Prometheus scraping.
@@ -468,23 +465,19 @@ resource "kubernetes_config_map" "cw_agent_prometheus_config" {
         {
           job_name = "kubernetes-pods-prometheus"
           kubernetes_sd_configs = [{ role = "pod" }]
-          # This relabeling configuration is key. It dynamically discovers pods
-          # that are annotated for Prometheus scraping.
+
           relabel_configs = [
-            # 1. Keep only pods that have the 'prometheus.io/scrape: "true"' annotation.
             {
               source_labels = ["__meta_kubernetes_pod_annotation_prometheus_io_scrape"]
               action        = "keep"
               regex         = "true"
             },
-            # 2. Use the path from the 'prometheus.io/path' annotation (defaults to /metrics).
             {
               source_labels = ["__meta_kubernetes_pod_annotation_prometheus_io_path"]
               action        = "replace"
               target_label  = "__metrics_path__"
               regex         = "(.+)"
             },
-            # 3. Construct the target address using the pod's IP and the port from 'prometheus.io/port'.
             {
               source_labels = ["__meta_kubernetes_pod_annotation_prometheus_io_port", "__meta_kubernetes_pod_ip"]
               action        = "replace"
@@ -492,12 +485,10 @@ resource "kubernetes_config_map" "cw_agent_prometheus_config" {
               replacement   = "$2:$1"
               target_label  = "__address__"
             },
-            # 4. Copy pod labels to the scraped metrics.
             {
               action = "labelmap"
               regex  = "__meta_kubernetes_pod_label_(.+)"
             },
-            # 5. Add 'kubernetes_namespace' and 'kubernetes_pod_name' as labels.
             {
               source_labels = ["__meta_kubernetes_namespace"]
               action        = "replace"
@@ -514,7 +505,6 @@ resource "kubernetes_config_map" "cw_agent_prometheus_config" {
     })
   }
 
-  # Ensure this ConfigMap is created only after the namespace and the add-on itself exist.
   depends_on = [
     kubernetes_namespace.amazon_cloudwatch,
     aws_eks_addon.cloudwatch_observability

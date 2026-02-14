@@ -190,14 +190,6 @@ resource "aws_iam_role_policy_attachment" "ssm_policy" {
   role       = aws_iam_role.k8s_node_role.name
 }
 
-#### MAKE SURE WE NEED THIS ####
-# Attach the policy required for managing Elastic Load Balancers (for Ingress Controller)
-# resource "aws_iam_role_policy_attachment" "elb_management_policy" {
-#   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2FullAccess" 
-#   role       = aws_iam_role.k8s_node_role.name
-# }
-
-
 # Policy for AWS Cloud Controller Manager
 resource "aws_iam_policy" "ccm_policy" {
   name        = "${var.cluster_name}-ccm-policy"
