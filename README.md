@@ -146,6 +146,7 @@ Navigate to the desired environment and apply the configuration.
 cd infra/terraform/envs/aws-selfhosted
 terraform init
 terraform apply -auto-approve
+terraform output -json > tf_outputs.json
 
 ```
 
@@ -172,13 +173,11 @@ Instead of running commands manually, you trigger the workflows directly from th
 3. Click **Run workflow** and select your target `environment` (e.g., `aws-selfhosted`, `eks-managed`, `aks-managed`) and the cloud `provider` (e.g., `aws`, `azure`).
 4. The pipeline will automatically configure your `kubeconfig`, install necessary dependencies (Helm, plugins, Helmfile), and apply the full stack to the active cluster using `helmfile apply`.
 
-
-
 ---
 
 ## Thesis Key Findings
 
-1. **Deployment & Provisioning Time:** AKS was the fastest to reach operational readiness (~6 min). EKS took the longest (~17 min) due to the sequential installation of add-ons like AWS EBS CSI Driver and CloudWatch. The Self-Managed cluster remained highly competitive (~7 min) thanks to the combined automation of Terraform and Ansible.
+1. **Deployment & Provisioning Time:** AKS was the fastest to reach operational readiness. EKS took the longest (~17 min) due to the sequential installation of add-ons like AWS EBS CSI Driver and CloudWatch. The Self-Managed cluster remained highly competitive thanks to the combined automation of Terraform and Ansible.
 
 2. **Performance & Autoscaling (k6):** Under simulated HTTP load, application response times and Horizontal Pod Autoscaler (HPA) triggers were virtually identical across all models when using equivalent compute resources. The deployment model does not bottleneck standard application request handling.
 
